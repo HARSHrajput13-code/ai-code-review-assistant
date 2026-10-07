@@ -2876,12 +2876,14 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | Protected `main` (§22.3 item 2) | Repository governance | **Active.** `commits`, `backend` and `frontend` are required checks. |
 | **PR-01 — M0 Bootstrap** (§22.5) | First production M0 implementation task | **COMPLETED.** Merged as PR #2 on 2026-10-07 (merge commit `30ed3b8`). Its branch was deleted locally and remotely. Execution record in §22.5. |
 | M0 production implementation | Milestone | **COMPLETED** (PR-01). The M0 "done when" passed. M0 delivers the engineering foundation only; it contains no review functionality. The Q7 verification remains a separate, earlier experiment. |
-| **PR-02 — Static-analysis core** | First M1 implementation task | **NOT STARTED (next).** |
-| M1, M2, M3, M4 (PR-02 to PR-10) | Milestones | **NOT STARTED.** No model has been selected (M2). |
+| **PR-02 — Static-analysis core** (§22.5) | First M1 implementation task | **COMPLETED.** Merged as PR #4 on 2026-10-07 (merge commit `bef8644`). Its branch was deleted locally and remotely. Execution record in §22.5. |
+| M1 vertical slice (PR-02 to PR-05) | Milestone | **IN PROGRESS.** PR-02 is completed; M1 closes only with PR-05 (§22.5). |
+| **PR-03 — Review domain and pipeline** | M1 implementation task | **NOT STARTED (next).** |
+| M2, M3, M4 (PR-06 to PR-10) | Milestones | **NOT STARTED.** No model has been selected (M2). |
 
 This table records the **current state** only.
 - **Normative workflow:** §22.3–22.6 (D-96) is what every implementation PR must follow. It is unchanged.
-- **Execution history:** what actually happened during PR-00 and PR-01 is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
+- **Execution history:** what actually happened during PR-00, PR-01 and PR-02 is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
 
 ### 22.2 Repository state and the Q7 experiment (historical note)
 
@@ -2954,8 +2956,8 @@ CI pattern: ^(feat|fix|docs|test|build|ci|refactor|perf|style|chore)(\([a-z0-9-]
 |---|---|---|---|---|---|
 | PR-00 | `chore/repository-foundation` | Foundation | GitHub workflow, CI, conventions | Repository workflow operational | **COMPLETED** (PR #1, merge `b72b3eb`) |
 | PR-01 | `feat/m0-bootstrap` | M0 | Production project bootstrap | M0 "done when" (§22.1) passes | **COMPLETED** (PR #2, merge `30ed3b8`) |
-| PR-02 | `feat/m1-static-analysis` | M1 | Static-analysis core | Static-analysis integration passes | **NOT STARTED** (next) |
-| PR-03 | `feat/m1-review-pipeline` | M1 | Review domain and pipeline | Deterministic review passes | Not started |
+| PR-02 | `feat/m1-static-analysis` | M1 | Static-analysis core | Static-analysis integration passes | **COMPLETED** (PR #4, merge `bef8644`) |
+| PR-03 | `feat/m1-review-pipeline` | M1 | Review domain and pipeline | Deterministic review passes | **NOT STARTED** (next) |
 | PR-04 | `feat/m1-api-contract` | M1 | Backend API and OpenAPI | API contract passes | Not started |
 | PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** | Not started |
 | PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes | Not started |
@@ -3086,6 +3088,57 @@ The Status column is the execution record and mirrors the §22.1 status table. T
   - raw output → `FindingCandidate`.
 - **Suggested commits:** `feat(analysis): add isolated static tool runner`, `feat(analysis): add pylint adapter`, `feat(analysis): add bandit adapter`, `feat(review): add finding normalization`, `feat(review): add deterministic finding IDs`, `test(analysis): add adapter failure-path coverage`.
 - **Acceptance:** the real static tools produce normalized, deterministic findings per the CIS.
+- **Execution record: COMPLETED.**
+  - **Repository:** `HARSHrajput13-code/ai-code-review-assistant`.
+  - **Pull request:** #4, `feat(m1): implement static analysis foundation`, from `feat/m1-static-analysis` into `main`. **Merged** on 2026-10-07 at 20:43:43 UTC.
+  - **Merge commit:** `bef864460bbf38de5a0f401cd16336d8094c116f`. Its parents are `f45643f` and the PR head `078a3840b97cfe0ecdc2c5081a98d2262dd99fcf`.
+  - **Commits:**
+    - `0fa265e` `feat(domain): add static analysis domain model`
+    - `0ee5eab` `feat(analysis): add isolated static tool runner`
+    - `c02c2aa` `feat(analysis): add application rule catalogue`
+    - `c4cca7a` `feat(review): add deterministic static finding normalization`
+    - `826bc89` `feat(analysis): add Python static analysis adapters`
+    - `078a384` `test(analysis): add static analysis integration and boundary tests`
+  - **CI on the head `078a384`:** `commits`, `backend` and `frontend` all **PASS** (runs 37683724003 and 37683931632).
+    - `backend` ran on Windows with Python 3.14.8: 318 passed; ruff, ruff format and mypy clean.
+  - **Tests:** **318 passed**, 0 failed, 0 skipped: the 126 M0 tests, all still passing, plus 192 new ones.
+    - Verified coverage on the reference machine: **98.8 %** overall. `analysis/python` modules are at 95–100 % and `backend/review` at 97–100 %, above the §20.1 gates.
+  - **What PR-02 implemented:**
+    - `SafeProcessRunner` (`analysis/process.py`, the only subprocess owner);
+    - the Pylint and Bandit adapters;
+    - the Python syntax check;
+    - the application-owned rule catalogue;
+    - raw tool output → `FindingCandidate`;
+    - normalization (§12.2) and deterministic static IDs (`number_static`, §12.1);
+    - the subset of the §5 domain that static analysis needs, and the `LanguageAdapter` and `Deadline` interfaces;
+    - adapter and failure-path tests.
+  - **Rule catalogue:**
+    - 71 entries: 2 parser rules, the 49 enabled Pylint rules with their §8.3 category and severity, and the 20 explicit Bandit entries (§8.5), plus the generic Bandit texts.
+    - Its completeness was verified against the CIS tables, the rcfile and the pinned Bandit 1.9.4 registry.
+    - Coverage maps and escalability are derived from it.
+  - **Verification:**
+    - **Failure paths:** timeout, oversized output, malformed or unexpected JSON, the Pylint fatal and usage bits and `fatal` messages, Bandit `errors` at exit 0, unknown rule IDs, invalid locations, a missing tool, an exhausted deadline, and one tool failing while the other succeeds. A failed tool contributes no candidates and stays distinct from "succeeded with zero findings".
+    - **Determinism:** opposite tool-completion orders were verified to give identical candidates and `S` IDs. All 5,040 permutations of a numbering input give identical output, and repeated real-tool runs are identical.
+    - **Architecture and security boundaries:**
+      - one subprocess owner; only `backend/config.py` may read the environment;
+      - the tool modules and the catalogue stay inside `analysis`;
+      - domain models are frozen and closed, with no mutable collections;
+      - submitted source is never executed, and shell metacharacters are inert.
+  - **Scope boundary:** PR-02 did **not** implement any AI, Ollama, review-pipeline, API, scoring, improvement or evaluation work.
+  - **Remaining PR-03 responsibilities** (§22.5):
+    - completing the immutable domain model;
+    - configuration;
+    - submission validation;
+    - `FakeAIReviewProvider`;
+    - AI response processing and location matching;
+    - AI numbering;
+    - corroboration, deduplication, claims and confidence;
+    - coverage and scoring;
+    - the summary fallback;
+    - the orchestrator and the `Deadline` implementation;
+    - `ReviewJobService` and idempotency.
+  - **Attribution:** none of the six commits, nor the merge commit, carries a Claude `Co-Authored-By` footer.
+  - **Branch:** `feat/m1-static-analysis` was deleted locally and on GitHub after the merge was verified.
 
 **PR-03: Review domain and pipeline.**
 - **Scope:**
@@ -3494,7 +3547,7 @@ This audit was performed afresh on the complete document, after the final correc
      - this §27.
    - **Status consistency.**
      - In the §22.1 status table, PR-00 and PR-01 each appear once, as COMPLETED.
-     - M0 is COMPLETED through PR-01. PR-02 is NOT STARTED (next), and M1–M4 are NOT STARTED.
+     - M0 is COMPLETED through PR-01. At the time of this check, PR-02 was NOT STARTED (next) and M1–M4 were NOT STARTED. Check 10 supersedes this for PR-02 and M1.
      - The §22.5 Status column and execution record agree with the table on the PR numbers and merge commits.
      - No section claims M1–M4, a model selection, or any review functionality.
      - Q7 is still classified only as the earlier experimental verification. It is not the production M0.
@@ -3507,14 +3560,34 @@ This audit was performed afresh on the complete document, after the final correc
      - **PR-02 implements the application-owned rule catalogue** (`analysis/python/rules.py`, §8.5), with its own completeness and coverage-derivation tests. This remains required.
      - No section claims that M0 implemented the catalogue. The catalogue module, its contents (§8.5) and the rule sets (§8.3, §8.4) are unchanged.
    - **Dependencies.** All five frontend dev packages outside the §21.2 table are now recorded in the PR-01 execution record, with their TDS §59 reasons. No package was added, removed, upgraded or downgraded. The dependency policy is unchanged.
-   - **Status unchanged.** PR-00, PR-01 and M0 are COMPLETED. PR-02 is NOT STARTED (next), and M1–M4 are NOT STARTED.
+   - **Status unchanged by this pass.** PR-00, PR-01 and M0 were COMPLETED; PR-02 was then NOT STARTED (next), and M1–M4 were NOT STARTED. Check 10 supersedes this.
    - **Byte-identical**, compared with the committed v0.3 text: everything outside the header, §8.8, §20.3, §22.1, §22.2, §22.5 and §27. In particular, the decision register (D-01 to D-96, including D-96 itself) and every constant are unchanged.
+
+10. **PR-02 status record and audit correction** (2026-10-08; status recording only; no design change, no new decision ID, version unchanged at 0.3):
+   - **What changed:**
+     - the §22.1 status table and its execution-history note;
+     - the §22.5 Status column and the PR-02 execution record (the original PR-02 scope, suggested commits and acceptance are unchanged);
+     - this §27.
+   - **Status consistency.**
+     - In the §22.1 status table, PR-00, PR-01 and PR-02 each appear once, as COMPLETED.
+     - M0 is COMPLETED. M1 is IN PROGRESS: it closes only with PR-05.
+     - PR-03 is NOT STARTED (next), and M2–M4 are NOT STARTED.
+     - The §22.5 Status column agrees with the table.
+     - No section claims that PR-02 implemented AI or review-pipeline functionality, that M1 is closed, or that PR-03 has started. No model is selected.
+     - Q7 is still classified only as experimental verification.
+   - **Audit wording corrected.** The §27.2 "Decision IDs" row said "D-01 to D-95 sequential", which predates D-96. It now covers D-01 to D-96.
+   - **Mechanical checks repeated** on the complete document:
+     - 155 headings and 115 distinct `§` references (one more than check 9, because this check cites §27.2), 0 unresolved;
+     - the §23 register has 96 rows, D-01 to D-96, with no gaps, no duplicates and no unregistered ID; D-96 is registered exactly once;
+     - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
+     - the frozen constants are unchanged.
+   - **Byte-identical**, compared with the text before this pass: everything outside §22.1, §22.5 and §27, including the decision register (D-96 itself) and every constant.
 
 ### 27.2 Results by domain
 
 | Domain | Checked | Result |
 |---|---|---|
-| **Decision IDs** | D-01 to D-95 sequential, each registered exactly once; D-95 has decision, rationale, status and affected sections; D-61 and D-84 point to D-95 | Consistent |
+| **Decision IDs** | D-01 to D-96 sequential: 96 registered decisions, each exactly once, with no gaps or duplicates; D-96 is registered exactly once. D-95 has decision, rationale, status and affected sections; D-61 and D-84 point to D-95 | Consistent |
 | **Cross-references** | every `§` reference, including the new §10.1 ↔ §20.6 ↔ §20.9 ↔ §20.10 ↔ §24.B prompt-lifecycle links | Consistent |
 | **Prompt lifecycle (D-95)** | §10.1 diagram and rules 1–5 ↔ §20.6 frozen development set ↔ §20.7 final-gate row ↔ §20.9 overview and "After selection" ↔ §20.10 revision records ↔ §22 M2 ↔ §24.A and §24.B ↔ §23 D-95 ↔ §20.3 tests | Consistent. Refinement happens only on the frozen, disjoint development set. Every revision is recorded immutably (`v1-rN`, content copy, manifest identifier, dev-set result, reason, timestamp and run ID). It stops at owner acceptance or designation, which is never a waiver. Each attempt uses a frozen, distinct revision on seeds 42/43/44 under the D-94 rule. At most 3 attempts; a third failure gives `MODEL_SELECTION_FAILED`. Freeze happens only after a PASS, with the passing revision's hashes. |
 | **Stability (D-94)** | §20.7, §20.8, §20.9 Stage D, §10.1 final gate | Unchanged. The full verdict must be PASS independently for each seed, with no averaging. |
@@ -3525,7 +3598,8 @@ This audit was performed afresh on the complete document, after the final correc
 | **Implementation workflow (D-96)** | §4, §22.2–22.6, §23, §24.A, §25 A22 | Consistent. Baseline commit, protected `main`, task branches, Conventional Commits 1.0.0, PR-00 to PR-10, merge commits, merge conditions. |
 | **No implementation** | repository state | In this D-96 pass only this document changed. The repository holds the three specifications only. No code, dependency, branch, commit, PR, BS or TDS change. |
 | **Implementation status (PR-00 record)** | §22.1 status table, §22.5 Status column and PR-00 execution record, header | Consistent. This supersedes the repository-state statement of the D-96 pass in the row above. `main` now holds the baseline and the PR-00 foundation files (merge `b72b3eb`). PR-00 is COMPLETED. PR-01 and M0 to M4 were then NOT STARTED, and no application code, dependency file or Q7 code existed. The row below supersedes this. |
-| **Implementation status (PR-01 record)** | §22.1 status table, §22.5 Status column and PR-01 execution record | Consistent. `main` now also holds the M0 foundation (merge `30ed3b8`). PR-00 and PR-01 are COMPLETED, and M0 is COMPLETED. PR-02 and M1 to M4 are NOT STARTED. No review functionality, AI integration, model selection or Q7 code exists. |
+| **Implementation status (PR-01 record)** | §22.1 status table, §22.5 Status column and PR-01 execution record | Consistent. `main` now also holds the M0 foundation (merge `30ed3b8`). PR-00 and PR-01 are COMPLETED, and M0 is COMPLETED. PR-02 and M1 to M4 were then NOT STARTED, and no review functionality, AI integration, model selection or Q7 code existed. The row below supersedes this. |
+| **Implementation status (PR-02 record)** | §22.1 status table, §22.5 Status column and PR-02 execution record | Consistent. `main` now also holds the static-analysis core (merge `bef8644`). PR-00, PR-01 and PR-02 are COMPLETED, and M0 is COMPLETED. M1 is IN PROGRESS, PR-03 is NOT STARTED (next), and M2–M4 are NOT STARTED. No AI, Ollama, review-pipeline, API, scoring, improvement, evaluation or model-selection work exists. |
 
 ### 27.3 Consistency with the parent specifications
 
@@ -3549,7 +3623,8 @@ This audit was performed afresh on the complete document, after the final correc
 | 11 | A normative, CIS-traceable GitHub workflow exists (branches, Conventional Commits, PR plan mapped to M0–M4, merge policy and conditions) | Met (§22.3–22.6, D-96) |
 | 12 | No section claims production M0 to M4 is implemented; the Q7 experiment is not production code | Met (§22.1, §22.2, §27.6) |
 | 13 | PR-00's completion is recorded with verifiable evidence (PR, merge commit, CI run, protection state); PR-01 and M0 were then explicitly NOT STARTED | Met (§22.1, §22.5) |
-| 14 | PR-01's completion is recorded with verifiable evidence (PR, merge commit, CI results, environment record, M0 acceptance); M0 is COMPLETED; PR-02 and M1–M4 remain explicitly NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 14 | PR-01's completion is recorded with verifiable evidence (PR, merge commit, CI results, environment record, M0 acceptance); M0 is COMPLETED; PR-02 and M1–M4 were then explicitly NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 15 | PR-02's completion is recorded with verifiable evidence (PR, merge commit, CI, tests, catalogue, failure-path, determinism and boundary verification); M1 is IN PROGRESS, not closed; PR-03 is NOT STARTED (next); M2–M4 remain NOT STARTED; no model is selected | Met (§22.1, §22.5) |
 
 ### 27.5 Remaining empirical questions (§24.B)
 
@@ -3570,7 +3645,7 @@ These are settled only by the defined M0 and M2 experiments on the reference har
 
 CIS v0.3, including the D-95 prompt-lifecycle clarification, is consistent with the Behavioural Specification and the Technical Design Specification. Every cross-reference, decision ID, version string, candidate reference and prompt-lifecycle statement was verified as described in §27.1. Neither parent document was modified.
 
-CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00 and PR-01 (the production M0) are completed; see "Current status" below. The Ollama version must be recorded before PR-06.
+CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0) and PR-02 (the M1 static-analysis core) are completed; see "Current status" below. The Ollama version must be recorded before PR-06.
 
 The remaining model-specific and prompt-specific outcomes are controlled empirical results to be obtained through the explicitly defined M0/M2 evaluation process.
 
@@ -3580,10 +3655,12 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
 - **Execution history:**
   - The approved specifications were committed as the baseline (`3f40ac5`).
   - The repository workflow was then established through PR-00. Its two recorded deviations, protection timing and attribution cleanup, are historical only (§22.5).
-  - The production M0 was then implemented through PR-01 (§22.5).
+  - The production M0 was then implemented through PR-01, and the M1 static-analysis core through PR-02 (§22.5).
 - **Current state:**
   - `main` is protected (§22.3). `commits`, `backend` and `frontend` are required checks. The repository is public.
   - **PR-00 is COMPLETED** and merged (PR #1, merge commit `b72b3eb`, `commits` CI PASS). Its branch was deleted locally and remotely.
   - **PR-01 is COMPLETED** and merged (PR #2, merge commit `30ed3b8`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely.
   - **M0 production implementation is COMPLETED.** It is the engineering foundation only; no review functionality exists yet.
-  - **PR-02 (M1 static-analysis core) is NOT STARTED (next).** M1–M4 are NOT STARTED, and no model has been selected.
+  - **PR-02 (M1 static-analysis core) is COMPLETED** and merged (PR #4, merge commit `bef8644`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely.
+  - **M1 is IN PROGRESS.** It closes only with PR-05.
+  - **PR-03 (review domain and pipeline) is NOT STARTED (next).** M2–M4 are NOT STARTED, and no model has been selected.
