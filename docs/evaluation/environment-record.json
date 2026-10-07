@@ -1,0 +1,27 @@
+{
+  "hardware": {
+    "cpu": "AMD Ryzen 7 7435HS",
+    "ram_bytes": 16989736960,
+    "gpus": [
+      {
+        "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "vram_mib": 4096
+      }
+    ]
+  },
+  "os": {
+    "edition": "Microsoft Windows 11 Home Single Language",
+    "build": "26200",
+    "architecture": "AMD64"
+  },
+  "versions": {
+    "python": "3.14.8",
+    "node": "24.21.0",
+    "npm": "11.19.0",
+    "uv": "0.12.23",
+    "ollama": null,
+    "pylint": "4.1.2",
+    "bandit": "1.9.4"
+  },
+  "git_commit": "07f95d161a16312c93071e688cb852fdd0c3e93a"
+}
