@@ -112,3 +112,16 @@ BANDIT_EXPLICIT: frozenset[str] = frozenset(
 CATEGORIES: frozenset[str] = frozenset(
     {"CORRECTNESS", "SECURITY", "BEST_PRACTICE", "MAINTAINABILITY", "READABILITY", "PERFORMANCE"}
 )
+
+# CIS §8.3: the severity column, by message ID.
+PYLINT_SEVERITIES: dict[str, str] = {
+    **dict.fromkeys(("E0601", "E0602", "E0103", "E0104", "E0105", "E0702"), "HIGH"),
+    **dict.fromkeys(("E1120", "E1121", "E1123"), "HIGH"),
+    **dict.fromkeys(("E0102", "E0711", "E1111", "E1305", "E1306"), "MEDIUM"),
+    **dict.fromkeys(("W0102", "W0150", "W0631", "W0640", "W0702"), "MEDIUM"),
+    **dict.fromkeys(("R0912", "R0915", "R1702"), "MEDIUM"),
+    **dict.fromkeys(("W0104", "W0106", "W0718", "W0706", "W0707", "W1514", "R1732"), "LOW"),
+    **dict.fromkeys(("W0622", "C0123", "R0911", "R0913", "W0101", "W0603", "W0611"), "LOW"),
+    **dict.fromkeys(("W0612", "W0613", "W0621", "C0301", "C0121", "C0200", "C0201"), "LOW"),
+    **dict.fromkeys(("C0206", "C0325", "C1802", "R1714", "R1728", "R1729"), "LOW"),
+}
