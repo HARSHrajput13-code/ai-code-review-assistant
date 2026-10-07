@@ -49,3 +49,56 @@ jobs:
             check "commit" "$subject"
           done < <(git log --no-merges --format=%s "$BASE_SHA..$HEAD_SHA")
           exit "$status"
+
+  backend:
+    name: backend
+    # The reference platform is Windows (CIS §21.1). Live-LLM tests never run in CI (CIS §20.1).
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.2.0  # setup-uv publishes no floating major tag
+        with:
+          version: "0.12.23"  # the uv version in docs/evaluation/environment-record.json
+
+      - name: Install Python 3.14.8
+        run: uv python install 3.14.8
+
+      - name: Install the locked environment (binary wheels only)
+        run: uv sync --locked --no-build
+
+      - name: Check dependency consistency
+        run: uv pip check
+
+      - name: Tests (architecture, tool contracts, runtime)
+        run: uv run --locked pytest
+
+      - name: Ruff
+        run: uv run --locked ruff check
+
+      - name: Ruff format
+        run: uv run --locked ruff format --check
+
+      - name: Mypy
+        run: uv run --locked mypy
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build

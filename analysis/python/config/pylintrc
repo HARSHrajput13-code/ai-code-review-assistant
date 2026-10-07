@@ -1,0 +1,79 @@
+# Pylint configuration (CIS §8.3). Pinned to pylint==4.1.2 (D-81).
+# Every enabled message must exist in the pinned version (contract test, CIS §8.8).
+
+[MAIN]
+jobs=1
+persistent=no
+load-plugins=
+unsafe-load-any-extension=no
+extension-pkg-allow-list=
+fail-under=0
+
+[MESSAGES CONTROL]
+disable=all
+enable=
+    used-before-assignment,
+    undefined-variable,
+    not-in-loop,
+    return-outside-function,
+    yield-outside-function,
+    raising-bad-type,
+    no-value-for-parameter,
+    too-many-function-args,
+    unexpected-keyword-arg,
+    function-redefined,
+    notimplemented-raised,
+    assignment-from-no-return,
+    too-many-format-args,
+    too-few-format-args,
+    dangerous-default-value,
+    lost-exception,
+    undefined-loop-variable,
+    cell-var-from-loop,
+    pointless-statement,
+    expression-not-assigned,
+    bare-except,
+    broad-exception-caught,
+    try-except-raise,
+    raise-missing-from,
+    unspecified-encoding,
+    consider-using-with,
+    redefined-builtin,
+    unidiomatic-typecheck,
+    too-many-branches,
+    too-many-statements,
+    too-many-nested-blocks,
+    too-many-return-statements,
+    too-many-arguments,
+    unreachable,
+    global-statement,
+    unused-import,
+    unused-variable,
+    unused-argument,
+    redefined-outer-name,
+    line-too-long,
+    singleton-comparison,
+    consider-using-enumerate,
+    consider-iterating-dictionary,
+    consider-using-dict-items,
+    superfluous-parens,
+    use-implicit-booleaness-not-len,
+    consider-using-in,
+    consider-using-generator,
+    use-a-generator
+
+[REPORTS]
+reports=no
+score=no
+
+[FORMAT]
+max-line-length=100
+
+[DESIGN]
+max-args=6
+max-returns=6
+max-branches=12
+max-statements=50
+
+[REFACTORING]
+max-nested-blocks=5
