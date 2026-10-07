@@ -1,0 +1,68 @@
+# One Python project: packages backend, ai, analysis, shared (CIS §4).
+[project]
+name = "ai-code-review-assistant"
+version = "0.1.0"
+description = "Local-first AI code review assistant"
+requires-python = ">=3.14.8,<3.15"
+dependencies = [
+    "bandit==1.9.4",
+    "fastapi>=0.142.3",
+    "httpx>=0.28.1",
+    "pydantic>=2,<3",
+    "pydantic-settings>=2.15.0",
+    "pylint==4.1.2",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.10",
+]
+
+[tool.uv]
+# An application, not a distributable package: nothing is built or installed from it.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = ["--strict-markers", "--strict-config"]
+markers = [
+    "live_llm: requires a running Ollama with a model; skipped unless RUN_LIVE_LLM=1 (CIS §20.1)",
+]
+
+[tool.coverage.run]
+source = ["backend", "ai", "analysis", "shared"]
+branch = true
+
+[tool.coverage.report]
+# Overall gate (CIS §20.1). The per-module 90 % gates apply once those modules exist.
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+# "S" (bandit-derived) runs on our own code (CIS §18).
+select = ["E", "W", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, and run the pinned tools as subprocesses with fixed argv.
+"tests/**" = ["S101", "S603"]
+# The environment check runs fixed version commands resolved with shutil.which.
+"scripts/check_environment.py" = ["S603"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+files = ["backend", "ai", "analysis", "shared", "scripts", "tests"]
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["bandit.*"]  # ships no type information
+ignore_missing_imports = true
