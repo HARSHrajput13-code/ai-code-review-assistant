@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0  # setup-uv publishes no floating major tag
         with:
           version: "0.12.23"  # the uv version in docs/evaluation/environment-record.json
 
