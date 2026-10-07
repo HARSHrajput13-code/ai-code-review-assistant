@@ -1,7 +1,7 @@
 # Concrete Implementation Specification
 ## AI Code Review Assistant
 
-**Document Version:** 0.3 (final specification revision before implementation; includes the D-95 prompt-lifecycle clarification, the M0/Q7 verification record, §8.9, and the D-96 implementation workflow, §22)
+**Document Version:** 0.3 (final specification revision before implementation; includes the D-95 prompt-lifecycle clarification, the M0/Q7 verification record, §8.9, the D-96 implementation workflow, §22, and the implementation-status record, §22.1 and §22.5)
 **Status:** Draft, awaiting final human approval
 **Supersedes:** CIS v0.2 (and v0.1) completely
 **Derived From:** Behavioural Specification v0.1 (BS), Technical Design Specification v0.1 (TDS)
@@ -1089,7 +1089,11 @@ Both releases declare Python 3.14 support (§26). They are not "the latest at bo
 - the Pylint `json2` and Bandit JSON output shapes match the parser fixtures;
 - stdin input works for both tools;
 - the documented exit-code assumptions in §8.7 match the pinned behaviour, recorded from real runs: Pylint's fatal and usage bits (findings exit 0 under `fail-under=0`), and Bandit's 0 and 1 for a clean run and a run with findings (and exit 0 with non-empty `errors` on syntax-invalid input);
-- the rule catalogue is complete, and the Pylint and Bandit rule sets do not overlap.
+- the CIS rule sets (§8.3–§8.5) are complete against the pinned tools, and the Pylint and Bandit rule sets do not overlap:
+  - every enabled Pylint rule exists in the pinned version and matches the rcfile;
+  - the Bandit skip list and explicit-entry IDs exist in the pinned version.
+
+These tests are **M0 tool-contract verification**: they check the frozen tool and rule requirements against the real installed tools. They do **not** implement the application-owned rule catalogue (`analysis/python/rules.py`, §8.5). That catalogue, and its own completeness test (an entry for every enabled rule), are PR-02 work (M1, §22.5).
 
 **Upgrade policy (D-82).** The pins are not permanent, but no version changes silently. A change to Python, Node.js, Pylint, Bandit or Ollama requires, in one deliberate version-control change:
 1. a compatibility check against the official release notes;
@@ -2351,7 +2355,8 @@ Default runtime state   = DISABLED (PERSISTENCE_ENABLED=false)
 - Every enabled message ID and symbol is present in `--list-msgs-enabled` under the project rcfile.
 - The rcfile loads without unknown-option errors, and does not contain `suggestion-mode`.
 - `json2` and Bandit JSON shapes match the fixtures. Stdin input works for both tools.
-- The catalogue is complete. Pylint and Bandit rules do not overlap. The coverage maps are derived from the catalogue.
+- **M0 tool-contract verification:** the CIS rule sets are complete against the pinned tools, and Pylint and Bandit rules do not overlap (§8.8).
+- **PR-02, the application-owned catalogue:** the catalogue (§8.5) has an entry for every enabled Pylint rule and every explicit Bandit entry, and the coverage maps are derived from it. These tests are implemented with the catalogue in PR-02, not in M0.
 - **Status:** verified in the Q7 experiment: 140 tests passed, 0 failed, 0 skipped (§8.9, which also lists the M1 obligations Q7 does *not* cover). Production M0 (PR-01) implements these tests afresh; the adapter-level tests are implemented in PR-02.
 
 **AI adapter and schema (D-41, D-42)**
@@ -2855,11 +2860,28 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 
 | Milestone | Scope | Done when |
 |---|---|---|
-| **M0 Bootstrap** | Repository layout. Python 3.14.8 (`.python-version`, `requires-python`) and Node.js 24.21.0 (`.nvmrc`, `engines`). `pyproject.toml` with `pylint==4.1.2` and `bandit==1.9.4`. Lockfiles. Frontend scaffold. Lint and type configs. `.env.example`. **Environment record** written, including the exact Ollama version. | `uv run pytest` and `npm run test` run. The architecture tests and **all tool contract tests** (§8.8, including exit codes) pass. The Python 3.14 dependency check (§21.2) passes. **Status: production implementation not started** (PR-01, §22.5). The tool and runtime baseline was verified by the Q7 experiment (§8.9). If Ollama is not installed when PR-01 is implemented, the environment record's Ollama version stays `null` and MUST be recorded before PR-06 (M2 prerequisite). |
+| **M0 Bootstrap** | Repository layout. Python 3.14.8 (`.python-version`, `requires-python`) and Node.js 24.21.0 (`.nvmrc`, `engines`). `pyproject.toml` with `pylint==4.1.2` and `bandit==1.9.4`. Lockfiles. Frontend scaffold. Lint and type configs. `.env.example`. **Environment record** written, including the exact Ollama version. | `uv run pytest` and `npm run test` run. The architecture tests and **all tool contract tests** (§8.8, including exit codes) pass. The Python 3.14 dependency check (§21.2) passes. **Status: COMPLETED** through PR-01 (§22.5), merged on 2026-10-07. The tool and runtime baseline was verified first by the Q7 experiment (§8.9), and again by PR-01's own tests. Ollama was not installed when PR-01 was implemented, so the environment record's Ollama version is `null`, and it MUST be recorded before PR-06 (M2 prerequisite). |
 | **M1 Vertical slice (fake AI)** | Immutable domain; configuration (including the context-budget startup check); submission validation; idempotency; the Python adapter; deterministic numbering; fake provider; `AIResponseProcessor` with post-sanitization re-validation; location matching; corroboration and claims; coverage and scoring; orchestrator; job service; API; contract export; minimal frontend (editor, idempotent submit, poll, score with "Not assessed", issues) | A review with real static tools and the fake AI renders in the browser. V1–V12 and the §13.8 properties pass. |
 | **M2 Ollama, improvement backend, model selection** | Ollama adapter (generated schema, `think: false`, per-call budget, retry, `done_reason`); readiness with model and digest checks; **backend improvement operation and §14 validation** (needed by C3 and C4); evaluation tooling (`run_eval.py`, reports). Then, in order: **freeze Dataset v1** → prompt v1 draft as the comparison snapshot → `$ref` compatibility check → Stage A eligibility → Stage B primary runs for all candidates → Stages C–E → development-set prompt refinement with recorded revisions (D-95) → final evaluation gate (seeds 42–44, at most 3 attempts on distinct revisions) → **freeze prompt v1** → model-selection and freeze records. | The selected model's final evaluation gate is **PASS** independently on each of seeds 42, 43 and 44 (§20.8). Prompt v1's MANIFEST is `frozen`. The model-selection record exists with outcome `SELECTED`. `.env.example` contains `OLLAMA_MODEL` and `OLLAMA_MODEL_DIGEST`. If the outcome is `MODEL_SELECTION_FAILED`, M2 is not done: it halts pending an approved amendment (§20.9 Stage E). |
 | **M3 Complete features (UI)** | Improved-code UI; partial, coverage and failure UI; location linking; banners | Every BS §39 acceptance criterion is demonstrable with the frozen model. |
 | **M4 Hardening** | Logging privacy tests; SQLite repository (implemented, disabled by default, D-86); E2E including the idempotent retry; README, including the V1 limitations, the model licence, and "Performance on the reference machine" (D-89) | All required tests pass. The evaluation reports and records are in `docs/evaluation/`. |
+
+**Implementation status** (recorded 2026-10-08; this is the authoritative status record):
+
+| Item | Kind | Status |
+|---|---|---|
+| Q7 baseline verification (§8.9) | Experimental specification verification, completed earlier | RESOLVED / PASS. **Not production code**: its implementation was removed and is never reused (§22.2). |
+| Specification baseline (§22.3 item 1) | One-time bootstrap commit on `main` | Committed: `3f40ac579fe9d7c34ffe13b6c1f0d5292bf76c4c` `docs: establish approved project specifications` |
+| **PR-00 — Repository Foundation** (§22.5) | Repository and GitHub workflow foundation; not a milestone and no M0 scope | **COMPLETED.** Merged as PR #1 on 2026-10-07 (merge commit `b72b3eb`). Its branch was deleted locally and remotely. Execution record in §22.5. |
+| Protected `main` (§22.3 item 2) | Repository governance | **Active.** `commits`, `backend` and `frontend` are required checks. |
+| **PR-01 — M0 Bootstrap** (§22.5) | First production M0 implementation task | **COMPLETED.** Merged as PR #2 on 2026-10-07 (merge commit `30ed3b8`). Its branch was deleted locally and remotely. Execution record in §22.5. |
+| M0 production implementation | Milestone | **COMPLETED** (PR-01). The M0 "done when" passed. M0 delivers the engineering foundation only; it contains no review functionality. The Q7 verification remains a separate, earlier experiment. |
+| **PR-02 — Static-analysis core** | First M1 implementation task | **NOT STARTED (next).** |
+| M1, M2, M3, M4 (PR-02 to PR-10) | Milestones | **NOT STARTED.** No model has been selected (M2). |
+
+This table records the **current state** only.
+- **Normative workflow:** §22.3–22.6 (D-96) is what every implementation PR must follow. It is unchanged.
+- **Execution history:** what actually happened during PR-00 and PR-01 is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
 
 ### 22.2 Repository state and the Q7 experiment (historical note)
 
@@ -2871,9 +2893,9 @@ The actual project M0 implementation starts fresh from the approved CIS
 and is not derived from the Q7 source tree.
 ```
 
-- The repository starts from the three approved specifications only.
+- The repository started from the three approved specifications only (the baseline commit, §22.1). PR-00 then added only the repository foundation files (§22.5).
 - Q7 code MUST NOT be reused, copied, renamed or reconstructed as production source. The Q7 results constrain the implementation; the Q7 source does not define it.
-- "M0/Q7 baseline verification completed" (§8.9) is distinct from "production M0 implemented". The latter is PR-01, which has not started.
+- "M0/Q7 baseline verification completed" (§8.9) is distinct from "production M0 implemented". The latter is PR-01, implemented from this CIS and completed (§22.1).
 
 ### 22.3 GitHub workflow
 
@@ -2928,27 +2950,64 @@ CI pattern: ^(feat|fix|docs|test|build|ci|refactor|perf|style|chore)(\([a-z0-9-]
 
 ### 22.5 Pull-request plan and milestone traceability
 
-| PR | Branch | Milestone | Scope | Exit condition |
-|---|---|---|---|---|
-| PR-00 | `chore/repository-foundation` | Foundation | GitHub workflow, CI, conventions | Repository workflow operational |
-| PR-01 | `feat/m0-bootstrap` | M0 | Production project bootstrap | M0 "done when" (§22.1) passes |
-| PR-02 | `feat/m1-static-analysis` | M1 | Static-analysis core | Static-analysis integration passes |
-| PR-03 | `feat/m1-review-pipeline` | M1 | Review domain and pipeline | Deterministic review passes |
-| PR-04 | `feat/m1-api-contract` | M1 | Backend API and OpenAPI | API contract passes |
-| PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** |
-| PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes |
-| PR-07 | `feat/m2-improvement` | M2 | Improvement backend (§22.1 places it in M2; gates C3/C4 need it) | Improvement tests pass |
-| PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** |
-| PR-09 | `feat/m3-ui-completion` | M3 | Complete UI behaviour | BS §39 acceptance demonstrable; **closes M3** |
-| PR-10 | `feat/m4-hardening` | M4 | Hardening and V1 freeze documentation | M4 "done when" passes; **closes M4** |
+| PR | Branch | Milestone | Scope | Exit condition | Status |
+|---|---|---|---|---|---|
+| PR-00 | `chore/repository-foundation` | Foundation | GitHub workflow, CI, conventions | Repository workflow operational | **COMPLETED** (PR #1, merge `b72b3eb`) |
+| PR-01 | `feat/m0-bootstrap` | M0 | Production project bootstrap | M0 "done when" (§22.1) passes | **COMPLETED** (PR #2, merge `30ed3b8`) |
+| PR-02 | `feat/m1-static-analysis` | M1 | Static-analysis core | Static-analysis integration passes | **NOT STARTED** (next) |
+| PR-03 | `feat/m1-review-pipeline` | M1 | Review domain and pipeline | Deterministic review passes | Not started |
+| PR-04 | `feat/m1-api-contract` | M1 | Backend API and OpenAPI | API contract passes | Not started |
+| PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** | Not started |
+| PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes | Not started |
+| PR-07 | `feat/m2-improvement` | M2 | Improvement backend (§22.1 places it in M2; gates C3/C4 need it) | Improvement tests pass | Not started |
+| PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** | Not started |
+| PR-09 | `feat/m3-ui-completion` | M3 | Complete UI behaviour | BS §39 acceptance demonstrable; **closes M3** | Not started |
+| PR-10 | `feat/m4-hardening` | M4 | Hardening and V1 freeze documentation | M4 "done when" passes; **closes M4** | Not started |
 
-PRs are merged in this order. Each PR's dependencies are all the PRs before it. The table decomposes the §22.1 milestone scope for delivery and does not change it.
+The Status column is the execution record and mirrors the §22.1 status table. The other columns are the original plan. PRs are merged in this order. Each PR's dependencies are all the PRs before it. The table decomposes the §22.1 milestone scope for delivery and does not change it.
 
 **PR-00: Repository foundation.**
 - **Scope:** `.gitignore`; `CONTRIBUTING.md` (summary of §22.3–22.6); `.github/pull_request_template.md` (§22.6); `.github/workflows/ci.yml` with the `commits` check; the protected-`main` settings of §22.3.
 - **No application code.**
 - **Suggested commits:** `chore(repo): add repository conventions`, `ci(github): add pull request validation workflow`, `docs(github): document branch and commit workflow`.
 - **Acceptance:** CI runs on PRs; the workflow and the conventions are documented; no application code; all checks pass.
+- **Execution record: COMPLETED.**
+  - **Repository:** `HARSHrajput13-code/ai-code-review-assistant` (public).
+  - **Pull request:** #1, `chore(repo): establish repository foundation`, from `chore/repository-foundation` into `main`. **Merged** on 2026-10-07 at 19:15 UTC.
+  - **Merge commit:** `b72b3eb524f4ee47a91035b2273d6584e50fe824`. Its parents are the baseline `3f40ac579fe9d7c34ffe13b6c1f0d5292bf76c4c` (`docs: establish approved project specifications`) and the PR head `8f18afa`. GitHub appended the PR number to the title (`… foundation (#1)`); the result still matches the §22.4 pattern.
+  - **Commits** (the suggested commits above, exactly):
+    - `b0bfde12128b344eaca7c2aecb7da20b9263dc6c` `chore(repo): add repository conventions`
+    - `3a94db1ad45bab29cb3484184da7d269d8d96ba3` `ci(github): add pull request validation workflow`
+    - `8f18afabf050b559d9ff1e44deb4ab35819139cf` `docs(github): document branch and commit workflow`
+  - **CI:** `commits`, final verified run 37672847071 on head `8f18afa`: **PASS**.
+  - **Files added:** `.gitignore`, `CONTRIBUTING.md`, `.github/pull_request_template.md`, `.github/workflows/ci.yml`. No application code, no dependency files, no Q7 code. BS, TDS and CIS were unchanged by PR-00.
+  - **Protected `main` (§22.3 item 2), as read back from GitHub:**
+    - pull requests required, and enforced for administrators;
+    - force pushes and branch deletion blocked;
+    - all conversations resolved before merging;
+    - required status checks enabled, with the branch up to date before merging; `commits` is required;
+    - merge commits only (squash and rebase disabled), with the PR title as the merge message;
+    - required approvals 0, under the §22.3 solo-development rule.
+  - **Attribution:** the three PR-00 commits and the merge commit carry no Claude `Co-Authored-By` footer. The baseline keeps its original footer intentionally. Claude Code commit and PR attribution is disabled for future work by the owner's user-level configuration.
+  - **Branch:** `chore/repository-foundation` was deleted locally and on GitHub after the merge was verified.
+  - **Execution-history deviations** (historical record only; they do not amend §22.3, §22.6 or D-96, and no decision ID is created for them):
+    - **A. Branch-protection timing.**
+      - *Normative workflow (§22.3 item 1):* baseline → protect `main` → PR-00.
+      - *Actual execution:* baseline → PR-00 implementation, review and merge → protection enabled afterwards.
+      - *Reason:* GitHub does not offer branch protection or rulesets for private repositories on GitHub Free. Protection could only be configured once the repository was made public, which happened after PR-00 was merged.
+      - *Interpretation:*
+        - This was an execution and environment limitation. The CIS workflow rule itself was **not** changed.
+        - Protection is now active, with `commits` required.
+        - Every future implementation PR MUST follow the protected-`main` workflow of §22.3.
+        - No PR-01 or M0 implementation occurred during the unprotected period. `main` received no direct push: its only commits are the baseline and the PR #1 merge.
+    - **B. PR-00 attribution-history cleanup.**
+      - *Actual execution:* before the merge, the three originally created PR-00 commits (`6122885`, `30a2e33`, `76cbd7e`) were re-created solely to remove an unwanted Claude attribution footer from their messages. The unmerged PR branch was updated with `--force-with-lease`. File contents were byte-identical, and the superseded commits are not part of `main`.
+      - *Interpretation:*
+        - This was a one-time historical cleanup of an unmerged branch before its merge.
+        - The merged PR-00 commits contain no Claude attribution.
+        - The approved baseline was **not** rewritten.
+        - Future commits rely on the Claude Code attribution setting, which is already disabled.
+        - This establishes **no** general permission to rewrite merged history. Force pushes to `main` remain blocked (§22.3).
 
 **PR-01: Production M0 bootstrap** (the first production implementation PR).
 - **Scope:** exactly the §22.1 M0 scope, implemented **from this CIS, not from the Q7 experiment**:
@@ -2963,6 +3022,52 @@ PRs are merged in this order. Each PR's dependencies are all the PRs before it. 
   The Q7 results (§8.7, §8.9) are binding constraints.
 - **Suggested commits:** `build(m0): add Python 3.14.8 project baseline`, `build(m0): add locked backend dependencies`, `build(frontend): add Node 24.21.0 baseline`, `build(m0): add project structure and configuration`, `test(m0): add bootstrap validation`, `ci(github): add backend and frontend checks`.
 - **Acceptance:** the M0 "done when" passes; the environment is reproducible from the lockfiles; no M1+ functionality.
+- **Execution record: COMPLETED.**
+  - **Pull request:** #2, `feat(m0): bootstrap production project foundation`, from `feat/m0-bootstrap` into `main`. **Merged** on 2026-10-07 at 20:06 UTC.
+  - **Merge commit:** `30ed3b85d56a78a3102de227486d5739c14f1239`. Its parents are `b72b3eb` (the PR-00 merge) and the PR head `dacd017`. It carries no Claude attribution.
+  - **Commits:**
+    - `ed88350` `build(m0): add locked Python 3.14.8 project baseline`
+    - `ca6381a` `build(frontend): add Node 24.21.0 baseline`
+    - `07f95d1` `build(m0): add static tool and runtime configuration`
+    - `ec35268` `build(m0): add environment check and record`
+    - `8e54359` `test(m0): add architecture and tool contract tests`
+    - `4720ce9` `ci(github): add backend and frontend checks`
+    - `7fe609b` `docs(m0): add bootstrap and environment documentation`
+    - `dacd017` `ci(github): pin setup-uv to an existing release tag`
+
+    The last one fixed a non-existent action tag that had made the first `backend` run fail before running.
+  - **CI on the final head `dacd017`:** `commits`, `backend` and `frontend` all **PASS** (runs 37678953153 and 37679147225).
+    - `backend` ran on Windows with Python 3.14.8 and uv 0.12.23: `pytest` 126 passed; `ruff`, `ruff format` and `mypy` clean.
+    - `frontend` ran on Node.js 24.21.0: 10 tests passed; `typecheck`, `lint` and `build` succeeded.
+  - **Required checks:** `backend` and `frontend` were added to the protected-`main` required checks after they first passed, alongside `commits`.
+  - **M0 acceptance (§22.1 "done when"): PASS.**
+    - `uv run pytest` and `npm run test` run.
+    - The architecture tests (§3.1 layering, §18 forbidden calls) and all tool contract tests (§8.8, including the §8.7 exit codes) pass against the real `pylint==4.1.2` and `bandit==1.9.4`.
+    - The Python 3.14 dependency check (§21.2) passed: `uv lock --check`; `uv sync --locked --no-build` (binary wheels only, 46 packages); `uv pip check`; the full suite in a disposable environment built from the lockfile.
+    - No project or test dependency was installed globally.
+  - **Environment record** (`docs/evaluation/environment-record.json`, written by `scripts/check_environment.py --record`):
+    - hardware: AMD Ryzen 7 7435HS; 16,989,736,960 bytes RAM; NVIDIA GeForce RTX 3050 Laptop GPU with 4,096 MiB;
+    - OS: Windows 11 Home Single Language, build 26200, AMD64;
+    - versions: Python 3.14.8, Node.js 24.21.0, npm 11.19.0, uv 0.12.23, Pylint 4.1.2, Bandit 1.9.4;
+    - **Ollama `null`** (not installed): an environment condition, not an M0 failure. It MUST be recorded before PR-06.
+    - No machine identifiers are recorded.
+  - **Not implemented** (later PRs): every M1 to M4 item. In particular, no model was selected.
+  - **Rule-catalogue scope** (as clarified in §8.8 and §20.3):
+    - PR-01 performed the **M0 tool-contract verification**: the CIS §8.3–§8.5 rule sets were checked against the pinned tools and the rcfile (`tests/contract/cis_rules.py`).
+    - PR-01 did **not** implement the application-owned rule catalogue. That catalogue (`analysis/python/rules.py`) and its completeness test are PR-02 work.
+  - **Frontend dev dependencies outside the §21.2 table** (TDS §59), each needed for a tool in the table to work, with no runtime effect:
+    - `@eslint/js` (9.x): ESLint's own recommended rules for the flat configuration;
+    - `typescript-eslint` (8.x): the parser and rules that let ESLint lint TypeScript;
+    - `@types/react` and `@types/react-dom` (19.x): React type definitions required by strict TypeScript;
+    - `@types/node` (24.x, matching Node.js 24.21.0): types for `vite.config.ts`.
+
+    All Python dependencies and all frontend runtime dependencies are exactly the §21.2 table. `eslint-plugin-react` and `eslint-plugin-react-hooks` are the table's "react plugins", and `@tailwindcss/vite` is its Tailwind "Vite plugin".
+  - **Version constraints within the table:**
+    - TypeScript is 5.9, because `openapi-typescript` 7 requires TypeScript 5;
+    - ESLint is 9, because `eslint-plugin-react` supports ESLint up to 9.
+
+    The frozen core baselines (Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2, Bandit 1.9.4) are unaffected.
+  - **Branch:** `feat/m0-bootstrap` was deleted locally and on GitHub after the merge was verified.
 
 **PR-02: Static-analysis core.**
 - **Scope:**
@@ -2973,6 +3078,7 @@ PRs are merged in this order. Each PR's dependencies are all the PRs before it. 
   - Pylint exit 0 with findings is *not* a failure;
   - Bandit exit 0 with `errors != []` *is* a failure;
   - runner isolation is mandatory.
+- **Includes the application rule-catalogue tests** (§8.5, §20.3): an entry for every enabled rule, and coverage maps derived from the catalogue. They build on the M0 tool-contract verification (§8.8).
 - **Includes the adapter-level tests Q7 did not cover:**
   - malformed JSON, non-empty Bandit `errors`, timeout and oversized output → `STATIC_ANALYSIS_FAILURE`;
   - out-of-range locations;
@@ -3303,9 +3409,9 @@ These are verified external facts (§0.6). Everything else in this document is a
 
 ---
 
-# 27. Consistency Audit (v0.3, including D-95, the M0/Q7 verification record and the D-96 implementation workflow)
+# 27. Consistency Audit (v0.3, including D-95, the M0/Q7 verification record, the D-96 implementation workflow and the PR-00 status record)
 
-This audit was performed afresh on the complete document, after the final correction pass (D-91 to D-94), the D-95 clarification, the persistence of the M0/Q7 verification record (§8.9), and the D-96 implementation workflow (§22).
+This audit was performed afresh on the complete document, after the final correction pass (D-91 to D-94), the D-95 clarification, the persistence of the M0/Q7 verification record (§8.9), the D-96 implementation workflow (§22), and the recording of PR-00's completion (§22.1, §22.5).
 
 ### 27.1 Method
 
@@ -3357,8 +3463,52 @@ This audit was performed afresh on the complete document, after the final correc
      - The M1 adapter-level tests stay in M1 (PR-02).
      - M2 owns Ollama, the improvement backend and model selection (PR-06 to PR-08). This keeps the §22.1 scope, which puts improvement in M2 for gates C3/C4.
      - M3 owns UI completion (PR-09). M4 owns hardening and the V1 freeze documentation, with no new selection (PR-10).
-   - **Repository-state consistency.** No active section claims that production M0, M1 or M2 is implemented. §22.1 marks M0 "production implementation not started". §8.8, §8.9, §20.3, §24.B and §27.6 distinguish "M0/Q7 baseline verification completed" from "production M0 implemented".
+   - **Repository-state consistency.** No active section claims that a production milestone is implemented before its PR is merged. §22.1 records the M0 production-implementation status, and PR-01 is the production M0 implementation task (see check 8). §8.8, §8.9, §20.3, §24.B and §27.6 distinguish "M0/Q7 baseline verification completed" from "production M0 implemented".
    - **Byte-identical sections** compared with the pre-D-96 text: §2–§3, §5–§7, §9–§20.2, §20.4–§21 and §26. In §23 only the D-96 row and the table caption were added.
+
+7. **PR-00 status-record checks** (2026-10-08; status recording only; no design change, no new decision ID, version unchanged at 0.3 following the convention of the earlier documentation-only passes):
+   - **What changed.**
+     - The header version note. The header status remains "Draft, awaiting final human approval", because this status-record update is itself under review.
+     - §22.1: the M0 row's status, now "NOT STARTED" with unchanged meaning; the new implementation-status table; and its note separating the current state, the normative workflow and the execution history.
+     - §22.2: one sentence changed to the past tense.
+     - §22.5: a Status column, and the PR-00 execution record with its two execution-history deviations.
+     - This §27, including item 6's M0 wording, which now uses the current terminology.
+   - **Status consistency.**
+     - The §22.1 status table is the single authoritative status record. PR-00 appears in it exactly once, as COMPLETED.
+     - The §22.5 Status column and the PR-00 execution record agree with it on the PR number, merge commit, CI run and result.
+     - At the time of this check, PR-01, M0 and M1–M4 were NOT STARTED everywhere. Check 8 supersedes this for PR-01 and M0.
+     - Q7 is classified only as experimental verification.
+     - At the time of this check, no section claimed that M0 or any milestone was complete.
+   - **Plan preserved.** The original §22.5 plan columns, the PR-00 scope, suggested commits and acceptance criteria, and §22.3, §22.4 and §22.6 are unchanged. The two PR-00 execution-history deviations (protection timing; attribution cleanup) are recorded in the execution record and explicitly do not amend §22.3, §22.6 or D-96.
+   - **Mechanical checks repeated:**
+     - 155 headings and 114 distinct `§` references, 0 unresolved;
+     - D-01 to D-96, each registered once, with no gaps;
+     - unchanged version strings and constants.
+   - **Byte-identical**, compared with the committed v0.3 text: everything outside the header, §22.1, §22.2, §22.5 and §27.
+
+8. **PR-01 status-record checks** (2026-10-08; status recording only; no design change, no new decision ID, version unchanged at 0.3):
+   - **What changed:**
+     - the §22.1 M0 row status and status table;
+     - one §22.2 sentence;
+     - the §22.5 Status column and the PR-01 execution record;
+     - this §27.
+   - **Status consistency.**
+     - In the §22.1 status table, PR-00 and PR-01 each appear once, as COMPLETED.
+     - M0 is COMPLETED through PR-01. PR-02 is NOT STARTED (next), and M1–M4 are NOT STARTED.
+     - The §22.5 Status column and execution record agree with the table on the PR numbers and merge commits.
+     - No section claims M1–M4, a model selection, or any review functionality.
+     - Q7 is still classified only as the earlier experimental verification. It is not the production M0.
+   - **Plan preserved.** The original PR-01 scope, suggested commits and acceptance are unchanged. The rule-catalogue question first raised here is resolved by check 9.
+   - **Byte-identical**, compared with the committed v0.3 text: everything outside the header, §22.1, §22.2, §22.5 and §27.
+
+9. **Rule-catalogue scope clarification and M0 dependency evidence** (2026-10-08; a scope-ownership clarification, not a design change; no new decision ID; version unchanged at 0.3):
+   - **The distinction, stated in §8.8, §20.3 and §22.5:**
+     - **M0 verifies the tool and rule contracts.** The frozen CIS rule sets are checked against the real Pylint 4.1.2 and Bandit 1.9.4: enabled IDs and symbols, rcfile options, skip list, output shapes, exit codes and disjointness. This verification remains required.
+     - **PR-02 implements the application-owned rule catalogue** (`analysis/python/rules.py`, §8.5), with its own completeness and coverage-derivation tests. This remains required.
+     - No section claims that M0 implemented the catalogue. The catalogue module, its contents (§8.5) and the rule sets (§8.3, §8.4) are unchanged.
+   - **Dependencies.** All five frontend dev packages outside the §21.2 table are now recorded in the PR-01 execution record, with their TDS §59 reasons. No package was added, removed, upgraded or downgraded. The dependency policy is unchanged.
+   - **Status unchanged.** PR-00, PR-01 and M0 are COMPLETED. PR-02 is NOT STARTED (next), and M1–M4 are NOT STARTED.
+   - **Byte-identical**, compared with the committed v0.3 text: everything outside the header, §8.8, §20.3, §22.1, §22.2, §22.5 and §27. In particular, the decision register (D-01 to D-96, including D-96 itself) and every constant are unchanged.
 
 ### 27.2 Results by domain
 
@@ -3374,6 +3524,8 @@ This audit was performed afresh on the complete document, after the final correc
 | **M0 / Q7 baseline** | §8.7–§8.9, §20.3, §21.1–§21.2, §22, §24.B, §25 | Consistent. Q7 RESOLVED / PASS, from an experiment whose code was removed (§22.2), recorded once (§8.9): Python 3.14.8, pylint 4.1.2, bandit 1.9.4, 140/0/0/0 tests, and an unchanged global environment. The observed tool semantics are normative for M1. The locked baseline principle and the global-install prohibition are in §21.2. |
 | **Implementation workflow (D-96)** | §4, §22.2–22.6, §23, §24.A, §25 A22 | Consistent. Baseline commit, protected `main`, task branches, Conventional Commits 1.0.0, PR-00 to PR-10, merge commits, merge conditions. |
 | **No implementation** | repository state | In this D-96 pass only this document changed. The repository holds the three specifications only. No code, dependency, branch, commit, PR, BS or TDS change. |
+| **Implementation status (PR-00 record)** | §22.1 status table, §22.5 Status column and PR-00 execution record, header | Consistent. This supersedes the repository-state statement of the D-96 pass in the row above. `main` now holds the baseline and the PR-00 foundation files (merge `b72b3eb`). PR-00 is COMPLETED. PR-01 and M0 to M4 were then NOT STARTED, and no application code, dependency file or Q7 code existed. The row below supersedes this. |
+| **Implementation status (PR-01 record)** | §22.1 status table, §22.5 Status column and PR-01 execution record | Consistent. `main` now also holds the M0 foundation (merge `30ed3b8`). PR-00 and PR-01 are COMPLETED, and M0 is COMPLETED. PR-02 and M1 to M4 are NOT STARTED. No review functionality, AI integration, model selection or Q7 code exists. |
 
 ### 27.3 Consistency with the parent specifications
 
@@ -3396,6 +3548,8 @@ This audit was performed afresh on the complete document, after the final correc
 | 10 | The M0/Q7 verified baseline is persisted once and constrains M1; Q7 is resolved; M1 adapter obligations are not marked as done | Met (§8.9, §21.2, §24.B) |
 | 11 | A normative, CIS-traceable GitHub workflow exists (branches, Conventional Commits, PR plan mapped to M0–M4, merge policy and conditions) | Met (§22.3–22.6, D-96) |
 | 12 | No section claims production M0 to M4 is implemented; the Q7 experiment is not production code | Met (§22.1, §22.2, §27.6) |
+| 13 | PR-00's completion is recorded with verifiable evidence (PR, merge commit, CI run, protection state); PR-01 and M0 were then explicitly NOT STARTED | Met (§22.1, §22.5) |
+| 14 | PR-01's completion is recorded with verifiable evidence (PR, merge commit, CI results, environment record, M0 acceptance); M0 is COMPLETED; PR-02 and M1–M4 remain explicitly NOT STARTED; no model is selected | Met (§22.1, §22.5) |
 
 ### 27.5 Remaining empirical questions (§24.B)
 
@@ -3416,8 +3570,20 @@ These are settled only by the defined M0 and M2 experiments on the reference har
 
 CIS v0.3, including the D-95 prompt-lifecycle clarification, is consistent with the Behavioural Specification and the Technical Design Specification. Every cross-reference, decision ID, version string, candidate reference and prompt-lifecycle statement was verified as described in §27.1. Neither parent document was modified.
 
-CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation has not started.** It proceeds from a clean repository through the D-96 workflow, from PR-00 to PR-10 (§22.3–22.6). The Ollama version must be recorded before PR-06.
+CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00 and PR-01 (the production M0) are completed; see "Current status" below. The Ollama version must be recorded before PR-06.
 
 The remaining model-specific and prompt-specific outcomes are controlled empirical results to be obtained through the explicitly defined M0/M2 evaluation process.
 
-> **Implementation begins only after CIS v0.3 is reviewed and approved.**
+**Current status** (2026-10-08; the authoritative record is §22.1):
+
+- **Normative workflow:** every implementation PR follows §22.3–22.6 (D-96), which is unchanged.
+- **Execution history:**
+  - The approved specifications were committed as the baseline (`3f40ac5`).
+  - The repository workflow was then established through PR-00. Its two recorded deviations, protection timing and attribution cleanup, are historical only (§22.5).
+  - The production M0 was then implemented through PR-01 (§22.5).
+- **Current state:**
+  - `main` is protected (§22.3). `commits`, `backend` and `frontend` are required checks. The repository is public.
+  - **PR-00 is COMPLETED** and merged (PR #1, merge commit `b72b3eb`, `commits` CI PASS). Its branch was deleted locally and remotely.
+  - **PR-01 is COMPLETED** and merged (PR #2, merge commit `30ed3b8`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely.
+  - **M0 production implementation is COMPLETED.** It is the engineering foundation only; no review functionality exists yet.
+  - **PR-02 (M1 static-analysis core) is NOT STARTED (next).** M1–M4 are NOT STARTED, and no model has been selected.
