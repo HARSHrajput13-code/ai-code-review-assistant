@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from ai.fake import (
+    CONTEXT_EXCEEDED,
     INVALID_JSON,
     INVALID_THEN_VALID,
     TIMEOUT,
@@ -399,3 +400,118 @@ def test_the_retry_respects_the_governing_deadline(consumed: float, calls: int) 
     if calls == 2:
         assert provider.calls[1].timeout_s == 300 - consumed  # min(180, remaining)
     assert result(outcome).analysis.ai_analysis.error_code is ErrorCode.AI_OUTPUT_INVALID
+
+
+# --- §14.5 decision table, every row (the improvement operation itself is PR-07; doubles only).
+
+
+def test_row_1_improvement_disabled_by_configuration_is_a_non_failure_skip() -> None:
+    improver = FakeImprover()
+    outcome, _ = run(improver=improver, improvement_enabled=False)
+    found = result(outcome)
+    improvement = found.analysis.improvement
+    assert (improvement.status, improvement.skip_reason, improvement.error_code) == (
+        OutcomeStatus.SKIPPED, SkipReason.DISABLED, None,
+    )  # fmt: skip
+    assert found.improved_code == ImprovedCode(
+        status=ImprovedCodeStatus.UNAVAILABLE,
+        code=None,
+        failure_code=None,
+        message="Improved-code generation is disabled.",
+    )
+    assert improver.calls == [] and outcome.status is ReviewStatus.COMPLETED
+    # Improvement is not a coverage component (§13.2), so coverage stays complete.
+    assert found.coverage.complete and not found.score.provisional and found.warnings == ()
+
+
+@pytest.mark.parametrize(
+    ("script", "code"),
+    [
+        ([UNAVAILABLE], ErrorCode.AI_MODEL_UNAVAILABLE),
+        ([CONTEXT_EXCEEDED], ErrorCode.AI_CONTEXT_EXCEEDED),
+        ([TIMEOUT], ErrorCode.REVIEW_TIMEOUT),
+    ],
+)
+def test_row_2_an_ai_dependency_failure_skips_improvement(script: Any, code: ErrorCode) -> None:
+    improver = FakeImprover()
+    outcome, _ = run(provider=FakeAIReviewProvider(review_script=script), improver=improver)
+    found = result(outcome)
+    improvement = found.analysis.improvement
+    assert (improvement.status, improvement.skip_reason, improvement.error_code) == (
+        OutcomeStatus.SKIPPED, SkipReason.DEPENDENCY_FAILED, code,
+    )  # fmt: skip
+    assert (found.improved_code.status, found.improved_code.code) == (
+        ImprovedCodeStatus.UNAVAILABLE, None,
+    )  # fmt: skip
+    assert found.improved_code.failure_code is code
+    assert improver.calls == [] and outcome.status is ReviewStatus.PARTIAL
+
+
+def test_row_3_no_issues_and_ai_success_is_a_non_failure_not_needed() -> None:
+    clean = FakeAIReviewProvider(
+        review_script=[FakeResponse(content='{"summary": "Fine.", "issues": []}')]
+    )
+    improver = FakeImprover()
+    outcome, _ = run(StubAdapter(candidates=()), clean, improver)
+    improvement = result(outcome).analysis.improvement
+    assert (improvement.skip_reason, improvement.error_code) == (SkipReason.NOT_NEEDED, None)
+    assert improver.calls == [] and outcome.status is ReviewStatus.COMPLETED
+
+
+def test_row_4_no_issues_and_invalid_ai_output_is_a_dependency_failure() -> None:
+    improver = FakeImprover()
+    invalid = FakeAIReviewProvider(review_script=[INVALID_JSON, INVALID_JSON])
+    outcome, _ = run(StubAdapter(candidates=()), invalid, improver)
+    found = result(outcome)
+    improvement = found.analysis.improvement
+    assert (improvement.skip_reason, improvement.error_code) == (
+        SkipReason.DEPENDENCY_FAILED, ErrorCode.AI_OUTPUT_INVALID,
+    )  # fmt: skip
+    assert found.improved_code.failure_code is ErrorCode.AI_OUTPUT_INVALID
+    assert found.improved_code.code is None and improver.calls == []
+    assert outcome.status is ReviewStatus.PARTIAL
+
+
+class ExplodingImprover(FakeImprover):
+    async def improve(self, *args: Any) -> Any:
+        raise RuntimeError("boom")
+
+
+class HangingImprover(FakeImprover):
+    async def improve(self, *args: Any) -> Any:
+        await asyncio.Event().wait()
+
+
+def improver_with(*script: FakeResponse) -> FakeImprover:
+    return FakeImprover(provider=FakeAIReviewProvider(improve_script=list(script)))
+
+
+@pytest.mark.parametrize(
+    ("make_improver", "deadline", "code"),
+    [
+        (lambda: improver_with(UNAVAILABLE), None, ErrorCode.AI_MODEL_UNAVAILABLE),
+        (lambda: improver_with(CONTEXT_EXCEEDED), None, ErrorCode.AI_CONTEXT_EXCEEDED),
+        (lambda: improver_with(TIMEOUT), None, ErrorCode.REVIEW_TIMEOUT),
+        (lambda: improver_with(INVALID_JSON, INVALID_JSON), None, ErrorCode.AI_OUTPUT_INVALID),
+        (ExplodingImprover, None, ErrorCode.AI_MODEL_UNAVAILABLE),
+        # remaining(): static, AI, then 1 ms that starts and bounds the improvement.
+        (HangingImprover, [300, 300, 0.001], ErrorCode.REVIEW_TIMEOUT),
+    ],
+    ids=["unavailable", "context", "timeout", "invalid-output", "exception", "deadline"],
+)
+def test_row_6_an_improvement_failure_is_never_reported_as_success(
+    make_improver: Any, deadline: list[float] | None, code: ErrorCode
+) -> None:
+    baseline, _ = run(improver=FakeImprover())
+    outcome, _ = run(
+        improver=make_improver(),
+        deadline=ScriptedDeadline(deadline) if deadline else None,
+        improvement_start_min_s=0,
+    )
+    found = result(outcome)
+    improvement = found.analysis.improvement
+    assert (improvement.status, improvement.error_code) == (OutcomeStatus.FAILED, code)
+    assert found.improved_code.status is ImprovedCodeStatus.UNAVAILABLE
+    assert (found.improved_code.code, found.improved_code.failure_code) == (None, code)
+    assert outcome.status is ReviewStatus.PARTIAL
+    assert found.score == result(baseline).score  # the review itself is unaffected

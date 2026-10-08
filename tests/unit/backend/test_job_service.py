@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -14,8 +14,9 @@ from backend.application.job_store import InMemoryReviewJobStore
 from backend.application.orchestrator import OrchestratorOptions, ReviewOrchestrator, ReviewOutcome
 from backend.application.validation import SubmissionValidator
 from shared.domain.enums import ErrorCode, ReviewStage, ReviewStatus
-from shared.domain.errors import RequestRejected
+from shared.domain.errors import IdempotencyConflict, RequestRejected
 from shared.domain.models import ReviewFailure
+from shared.domain.review import CodeReview
 from tests.unit.backend.pipeline_doubles import SOURCE, StubAdapter
 from tests.unit.builders import FakeClock
 
@@ -116,12 +117,70 @@ def test_new_keys_and_no_key_create_new_reviews() -> None:
     scenario(body)
 
 
+class ContendedStore(InMemoryReviewJobStore):
+    """Holds every key lookup at a barrier, so concurrent POSTs all miss the pre-check (§6.3
+    steps 6-7) and race into create_or_replay, where only the lock-protected re-check can
+    decide. Records each create_or_replay outcome."""
+
+    def __init__(self, parties: int) -> None:
+        super().__init__(max_active=3, max_retained=50, ttl_seconds=900)
+        self._barrier = asyncio.Barrier(parties)
+        self.lookups: list[object] = []
+        self.outcomes: list[str] = []
+
+    async def find_by_idempotency_key(self, key: str) -> tuple[UUID, str] | None:
+        found = await super().find_by_idempotency_key(key)
+        self.lookups.append(found)
+        await self._barrier.wait()  # nobody creates until every POST has looked the key up
+        return found
+
+    async def create_or_replay(self, *args: Any) -> tuple[CodeReview, bool]:
+        try:
+            review, created = await super().create_or_replay(*args)
+        except IdempotencyConflict:
+            self.outcomes.append("conflict")
+            raise
+        self.outcomes.append("created" if created else "replayed")
+        return review, created
+
+
+def contended(clock: FakeClock, store: ContendedStore) -> ReviewJobService:
+    validator = SubmissionValidator(LanguageRegistry([StubAdapter()]), 12_000, 500)
+    orchestrator = ReviewOrchestrator(FakeAIReviewProvider(), clock, OrchestratorOptions())
+    return ReviewJobService(
+        store, validator, orchestrator, clock, max_concurrent=1, review_timeout_seconds=300
+    )
+
+
 def test_concurrent_posts_with_one_key_create_once() -> None:
     async def body(clock: FakeClock) -> None:
-        jobs, _ = service(clock)
+        store = ContendedStore(parties=2)
+        jobs = contended(clock, store)
         results = await asyncio.gather(*(jobs.submit("python", CODE, KEY) for _ in range(2)))
+        assert store.lookups == [None, None]  # both passed the pre-check: genuine contention
+        assert sorted(store.outcomes) == ["created", "replayed"]  # the locked re-check decided
         assert sorted(created for _, created in results) == [False, True]
         assert len({review.review_id for review, _ in results}) == 1
+        await jobs.wait_idle()
+        assert len(store._entries) == 1  # exactly one review exists
+
+    scenario(body)
+
+
+def test_concurrent_posts_with_one_key_and_different_payloads_conflict() -> None:
+    async def body(clock: FakeClock) -> None:
+        store = ContendedStore(parties=2)
+        jobs = contended(clock, store)
+        results = await asyncio.gather(
+            jobs.submit("python", CODE, KEY),
+            jobs.submit("python", CODE + "\n", KEY),
+            return_exceptions=True,
+        )
+        assert store.lookups == [None, None]
+        assert sorted(store.outcomes) == ["conflict", "created"]
+        assert sum(isinstance(r, IdempotencyConflict) for r in results) == 1
+        await jobs.wait_idle()
+        assert len(store._entries) == 1  # nothing was created for the conflict
 
     scenario(body)
 
