@@ -17,7 +17,7 @@ from uuid import UUID
 
 import pytest
 
-from ai.fake import TIMEOUT, UNAVAILABLE, FakeAIReviewProvider, FakeResponse
+from ai.fake import INVALID_JSON, TIMEOUT, UNAVAILABLE, FakeAIReviewProvider, FakeResponse
 from analysis.registry import LanguageRegistry
 from backend.application import orchestrator as orchestrator_module
 from backend.application.events import bound
@@ -28,6 +28,7 @@ from backend.application.validation import SubmissionValidator
 from backend.logging_setup import JsonFormatter
 from backend.review.scoring.policy import ScoringPolicyV1
 from shared.domain.enums import ReviewStatus
+from shared.domain.errors import AIResponseInvalid, ImprovedCodeInvalid
 from shared.domain.models import SourceText, SyntaxCheck
 from tests.unit.backend.api_client import CODE, KEY, REVIEWS, Api, scenario
 from tests.unit.backend.pipeline_doubles import FAILED, SUBMISSION, FakeImprover, StubAdapter
@@ -84,14 +85,17 @@ def ran(*stages: str) -> list[tuple[str, str | None, str | None]]:
 
 ANALYSIS = ran("PARSING", "STATIC_ANALYSIS", "STATIC_NUMBERING", "AI_ANALYSIS")
 FINDINGS = ran("NORMALIZATION", "DEDUPLICATION", "SCORING")
-NO_IMPROVER = [(FINISHED, "IMPROVEMENT", "SKIPPED")]
+NO_IMPROVER = [
+    (FINISHED, "IMPROVEMENT", "SKIPPED"),
+    (FINISHED, "IMPROVEMENT_VALIDATION", "SKIPPED"),
+]
 
 
 def jobs(clock: FakeClock, runner: Any = None, *, max_concurrent: int = 3, **parts: Any) -> Any:
     orchestrator = runner or ReviewOrchestrator(
         parts.get("provider") or FakeAIReviewProvider(),
         clock,
-        OrchestratorOptions(),
+        parts.get("options") or OrchestratorOptions(),
         parts.get("improver"),
         parts.get("policy"),
     )
@@ -144,9 +148,10 @@ class Gated(FakeAIReviewProvider):
 @dataclass
 class Advancing(FakeAIReviewProvider):
     clock: FakeClock = field(default_factory=FakeClock)
+    seconds: float = 2.5
 
     async def review(self, request: Any, deadline: Any) -> Any:
-        self.clock.advance(2.5)
+        self.clock.advance(self.seconds)
         return await super().review(request, deadline)
 
 
@@ -173,6 +178,12 @@ class ExplodingRunner:
 def assert_diagnostics(record: dict[str, Any], exception_type: str) -> None:
     assert record["level"] == "ERROR" and record["exception_type"] == exception_type
     assert record["traceback"] and all(FRAME.match(frame) for frame in record["traceback"])
+
+
+def assert_each_stage_once(records: list[dict[str, Any]]) -> None:
+    """No stage of one review starts or finishes twice."""
+    counts = Counter((r["event"], r["stage"]) for r in records if r["event"] in (STARTED, FINISHED))
+    assert set(counts.values()) <= {1}
 
 
 # --- the whole lifecycle -------------------------------------------------------------------
@@ -206,8 +217,10 @@ def test_a_review_over_http_logs_its_whole_lifecycle_under_its_request(log: Log)
             assert record["level"] == "INFO" and "exception_type" not in record
     ai = [r for r in records if r.get("stage") == "AI_ANALYSIS"]
     assert all(MODEL.items() <= r.items() for r in ai) and ai[1]["attempt"] == 1
-    improvement = next(r for r in records if r.get("stage") == "IMPROVEMENT")
-    assert improvement["skip_reason"] == "DISABLED" and "error_code" not in improvement
+    assert_each_stage_once(records)
+    for stage in ("IMPROVEMENT", "IMPROVEMENT_VALIDATION"):  # disabled: neither ever starts
+        skipped = log.stage(FINISHED, stage)
+        assert skipped["skip_reason"] == "DISABLED" and "error_code" not in skipped
 
     result, finished = found["result"], next(r for r in records if r["event"] == DONE)
     assert finished["level"] == "INFO" and finished["status"] == found["status"]
@@ -237,6 +250,8 @@ def test_durations_come_from_the_clock(log: Log) -> None:
 def test_an_executed_improvement_logs_its_start_and_finish(log: Log) -> None:
     review, review_id = reviewed(improver=FakeImprover())
     assert review.status is ReviewStatus.COMPLETED
+    # A result the operation returns has been through its own §14.3 validation, which the
+    # operation logs (PR-07); the orchestrator adds no stage-11 record.
     assert trail(log.of(review_id)) == [
         *ANALYSIS, *FINDINGS, *ran("IMPROVEMENT"), (DONE, None, "COMPLETED"),
     ]  # fmt: skip
@@ -375,6 +390,7 @@ def test_each_terminal_review_logs_exactly_one_finish(
     records = log.of(review_id)
     finished = [r for r in records if r["event"] == DONE]
     assert len(finished) == 1 and records[-1] is finished[0]
+    assert_each_stage_once(records)
     record = finished[0]
     assert (record["status"], record.get("error_code")) == (review.status, error_code)
     assert record["request_id"] == "request-0000-0001"
@@ -463,3 +479,129 @@ def test_a_bug_in_static_numbering_fails_the_review_once(
     assert log.stage(FINISHED, "STATIC_NUMBERING")["error_code"] == "INTERNAL_ERROR"
     assert_diagnostics(log.of(review_id)[-1], "ValueError")
     assert MARK not in log.stream.getvalue()
+
+
+# --- stage 11, IMPROVEMENT_VALIDATION (§7.2, §14.3, §14.5) ------------------------------------
+
+NO_ISSUES = FakeResponse(content=json.dumps({"summary": "Nothing to change.", "issues": []}))
+
+
+class BlockingImprover(FakeImprover):
+    async def improve(self, *args: Any) -> Any:
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+
+class UnusableResponse(FakeImprover):
+    async def improve(self, *args: Any) -> Any:
+        raise AIResponseInvalid(retryable=False)
+
+
+class InvalidCandidate(FakeImprover):
+    """The operation validated its candidate and rejected it (§14.3)."""
+
+    async def improve(self, *args: Any) -> Any:
+        raise ImprovedCodeInvalid(f"INTERFACE_CHANGED {MARK}")
+
+
+def improving(**parts: Any) -> Any:
+    """Parts for `reviewed`, with an improvement operation present unless one is given."""
+    return lambda clock: {"improver": FakeImprover(), **parts}
+
+
+@pytest.mark.parametrize(
+    ("parts", "improvement", "skip_reason", "error_code", "status"),
+    [
+        (lambda clock: {}, "SKIPPED", "DISABLED", None, "COMPLETED"),
+        (
+            improving(provider=FakeAIReviewProvider(review_script=[UNAVAILABLE])),
+            "SKIPPED", "DEPENDENCY_FAILED", "AI_MODEL_UNAVAILABLE", "PARTIAL",
+        ),
+        (
+            improving(adapter=StubAdapter(candidates=()),
+                      provider=FakeAIReviewProvider(review_script=[NO_ISSUES])),
+            "SKIPPED", "NOT_NEEDED", None, "COMPLETED",
+        ),
+        (
+            improving(adapter=StubAdapter(candidates=()),
+                      provider=FakeAIReviewProvider(review_script=[INVALID_JSON, INVALID_JSON])),
+            "SKIPPED", "DEPENDENCY_FAILED", "AI_OUTPUT_INVALID", "PARTIAL",
+        ),
+        (
+            lambda clock: {"improver": FakeImprover(),
+                           "provider": Advancing(clock=clock, seconds=290)},  # 10 s < 15 s
+            "SKIPPED", "DEADLINE_EXCEEDED", "REVIEW_TIMEOUT", "PARTIAL",
+        ),
+        (
+            lambda clock: {"improver": BlockingImprover(),
+                           "provider": Advancing(clock=clock, seconds=299.999),  # 1 ms left
+                           "options": OrchestratorOptions(improvement_start_min_s=0)},
+            "FAILED", "DEADLINE_EXCEEDED", "REVIEW_TIMEOUT", "PARTIAL",
+        ),
+        (
+            improving(improver=UnusableResponse()),
+            "FAILED", "DEPENDENCY_FAILED", "AI_OUTPUT_INVALID", "PARTIAL",
+        ),
+        (
+            improving(improver=ExplodingImprover()),
+            "FAILED", "DEPENDENCY_FAILED", "AI_MODEL_UNAVAILABLE", "PARTIAL",
+        ),
+    ],
+    ids=[
+        "disabled", "ai-unavailable", "not-needed", "no-issues-ai-invalid",
+        "deadline-before-start", "deadline-cancels-operation", "provider-error", "operation-bug",
+    ],
+)  # fmt: skip
+def test_validation_without_a_candidate_logs_a_finish_only_skip_for_its_cause(
+    log: Log,
+    parts: Any,
+    improvement: str,
+    skip_reason: str,
+    error_code: str | None,
+    status: str,
+) -> None:
+    clock = FakeClock()
+    review, review_id = reviewed(clock=clock, **parts(clock))
+    assert review.status == status
+    # The review result is unchanged: the improvement outcome per §14.5, and no stage-11 entry.
+    outcome = review.result.analysis.improvement
+    assert (outcome.status, outcome.error_code) == (improvement, error_code)
+    if improvement == "SKIPPED":
+        assert outcome.skip_reason == skip_reason
+    records = log.of(review_id)
+    assert_each_stage_once(records)
+    validation = [r for r in records if r.get("stage") == "IMPROVEMENT_VALIDATION"]
+    assert [r["event"] for r in validation] == [FINISHED]  # exactly once, and never started
+    record = validation[0]
+    assert (record["status"], record["skip_reason"], record.get("error_code")) == (
+        "SKIPPED", skip_reason, error_code,
+    )  # fmt: skip
+    assert record["duration_ms"] == 0 and record["level"] == "INFO"
+    assert "exception_type" not in record and STAGE_FIELDS <= set(record)
+    assert record["request_id"] == "request-0000-0001"
+    previous = records[records.index(record) - 1]  # right after the improvement's finish
+    assert (previous["event"], previous["stage"]) == (FINISHED, "IMPROVEMENT")
+    finished = next(r for r in records if r["event"] == DONE)
+    assert "IMPROVEMENT_VALIDATION" not in finished["outcomes"]
+    assert MARK not in log.stream.getvalue()
+
+
+def test_validation_inside_the_operation_is_not_logged_by_the_orchestrator(log: Log) -> None:
+    review, review_id = reviewed(improver=InvalidCandidate())
+    outcome = review.result.analysis.improvement
+    assert (outcome.status, outcome.error_code) == ("FAILED", "IMPROVED_CODE_INVALID")
+    records = log.of(review_id)
+    assert not [r for r in records if r.get("stage") == "IMPROVEMENT_VALIDATION"]
+    assert trail(records)[-2] == (FINISHED, "IMPROVEMENT", "FAILED")
+    assert MARK not in log.stream.getvalue()  # nor the internal rejection reason
+
+
+def test_a_review_stopped_at_the_checkpoint_logs_no_later_stages(log: Log) -> None:
+    review, review_id = reviewed(
+        adapter=StubAdapter(pylint=FAILED, bandit=FAILED),
+        provider=FakeAIReviewProvider(review_script=[TIMEOUT]),
+        improver=FakeImprover(),
+    )
+    assert review.status is ReviewStatus.FAILED and review.result is None
+    stages = {r["stage"] for r in log.of(review_id) if r["event"] in (STARTED, FINISHED)}
+    assert stages == {"PARSING", "STATIC_ANALYSIS", "STATIC_NUMBERING", "AI_ANALYSIS"}
