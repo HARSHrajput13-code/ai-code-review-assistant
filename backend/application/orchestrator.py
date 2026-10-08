@@ -4,15 +4,23 @@ It depends only on interfaces (§3): the language adapter, the AI provider and, 
 improvement operation, an `Improver`. The improvement operation and its §14.3 validation are
 PR-07; until an `Improver` is supplied, improvement reports as disabled (a non-failure skip) and
 no unvalidated code is ever returned. The orchestrator never touches the job store.
+
+Each stage that runs logs `review.stage.started` and `review.stage.finished` under its §7.2 log
+name; a stage that never starts logs only its finish, with the skip (§19.1). Stage 11
+(IMPROVEMENT_VALIDATION, §14.3) validates the improvement operation's candidate: when the
+operation is skipped or ends without returning one, stage 11 logs a finish-only skip for the same
+cause. A result the operation returns has been through its own validation, which the operation
+(PR-07) logs.
 """
 
 import asyncio
-import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Protocol
 
 from backend.application.deadline import Clock
+from backend.application.events import stage_finished, stage_started
 from backend.review.coverage import coverage
 from backend.review.issues import build_issues
 from backend.review.matching import corroborate, dedupe_ai
@@ -52,8 +60,7 @@ from shared.domain.models import (
     ToolOutcome,
 )
 
-logger = logging.getLogger(__name__)
-
+SUCCEEDED = StageOutcome(status=OutcomeStatus.SUCCEEDED)
 PROMPT_MAX_IMPROVEMENT_ISSUES = 20  # §9.7
 DEPENDENCY_CODES = (
     ErrorCode.AI_MODEL_UNAVAILABLE,
@@ -97,6 +104,7 @@ class ReviewOutcome:
     result: ReviewResult | None = None
     failure: ReviewFailure | None = None
     refs_rejected: int = 0
+    error: Exception | None = None  # behind FAILED(INTERNAL_ERROR): its type and frames are logged
 
 
 def _failed(code: ErrorCode, message: str | None = None, duration_ms: int = 0) -> StageOutcome:
@@ -177,9 +185,10 @@ class ReviewOrchestrator:
 
         static = await self._static(adapter, source, deadline)  # stages 3-4
         try:
-            static_findings = number_static(static.candidates, source.line_count)  # stage 4a
+            with self._stage("STATIC_NUMBERING"):  # stage 4a
+                static_findings = number_static(static.candidates, source.line_count)
         except Exception as error:
-            return self._internal_error("STATIC_NUMBERING", error)
+            return self._internal_error(error)
 
         ai_outcome, ai_result = await self._ai(submission, static_findings, deadline)  # stage 5
 
@@ -191,17 +200,19 @@ class ReviewOrchestrator:
                     ReviewStatus.FAILED,
                     failure=ReviewFailure(code=code, message=FAILURE_MESSAGES[code]),
                 )
-            ai_findings = dedupe_ai(
-                number_ai(ai_result.candidates, source.line_count) if ai_result else ()
-            )  # stage 6
-            corroboration = corroborate(ai_findings, static_findings)  # stage 7
-            issues = build_issues(static_findings, ai_findings, corroboration)
-            score = self._policy.score(  # stage 8
-                issues,
-                assessed,
-                syntax_valid=static.syntax_valid,
-                coverage_complete=covered.complete,
-            )
+            with self._stage("NORMALIZATION"):  # stage 6
+                numbered = number_ai(ai_result.candidates, source.line_count) if ai_result else ()
+            with self._stage("DEDUPLICATION"):  # stage 7
+                ai_findings = dedupe_ai(numbered)
+                corroboration = corroborate(ai_findings, static_findings)
+                issues = build_issues(static_findings, ai_findings, corroboration)
+            with self._stage("SCORING"):  # stage 8
+                score = self._policy.score(
+                    issues,
+                    assessed,
+                    syntax_valid=static.syntax_valid,
+                    coverage_complete=covered.complete,
+                )
             summary = (  # stage 9
                 ReviewSummary(text=ai_result.summary, source=SummarySource.AI)
                 if ai_result
@@ -215,7 +226,7 @@ class ReviewOrchestrator:
                 )
             )
         except Exception as error:
-            return self._internal_error("SCORING", error)
+            return self._internal_error(error)
 
         await report(ReviewStage.GENERATING_IMPROVEMENT)
         improvement, improved = await self._improve(submission, issues, ai_outcome, deadline)
@@ -258,47 +269,105 @@ class ReviewOrchestrator:
         )
         return ReviewOutcome(status, result=result, refs_rejected=corroboration.refs_rejected)
 
+    def _elapsed_ms(self, since: float) -> int:
+        return max(0, int((self._clock.monotonic() - since) * 1000))
+
+    def _started(self, stage: str, /, **fields: object) -> float:
+        stage_started(stage, **fields)
+        return self._clock.monotonic()
+
+    def _finished(
+        self,
+        stage: str,
+        outcome: StageOutcome,
+        since: float | None = None,
+        error: Exception | None = None,
+        /,
+        **fields: object,
+    ) -> None:
+        """`since` is None for a stage that never started."""
+        duration = 0 if since is None else self._elapsed_ms(since)
+        stage_finished(stage, outcome, duration, error, **fields)
+
+    @contextmanager
+    def _stage(self, stage: str) -> Iterator[None]:
+        """A pure stage (4a, 6-8): an exception is a bug, FAILED(INTERNAL_ERROR) (§7.2)."""
+        since = self._started(stage)
+        try:
+            yield
+        except Exception:
+            self._finished(stage, _failed(ErrorCode.INTERNAL_ERROR), since)
+            raise  # the review fails, and review.finished logs the exception
+        self._finished(stage, SUCCEEDED, since)
+
     async def _static(
         self, adapter: LanguageAdapter, source: SourceText, deadline: Deadline
     ) -> StaticAnalysisResult:
-        syntax_candidate = None
+        """Stages 3-4, each isolated at its boundary (§7.2): a failure fails the tools."""
+        since = self._started("PARSING")
         try:
-            syntax = adapter.check_syntax(source)
-            syntax_candidate = syntax.candidate
-            remaining = deadline.remaining()
-            if not _may_start(remaining):  # the tools never started (§7.2)
-                skipped = _skipped(SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT)
-                return _without_tools(syntax_candidate, skipped)
+            syntax = adapter.check_syntax(source)  # a syntax error is a result, not a failure
+        except Exception as error:
+            failed = _failed(ErrorCode.STATIC_ANALYSIS_FAILURE)
+            self._finished("PARSING", failed, since, error)
+            self._finished("STATIC_ANALYSIS", failed)  # the tools never started
+            return _without_tools(None, failed)
+        self._finished("PARSING", SUCCEEDED, since)
+        remaining = deadline.remaining()
+        if not _may_start(remaining):  # the tools never started (§7.2)
+            skipped = _skipped(SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT)
+            self._finished("STATIC_ANALYSIS", skipped)
+            return _without_tools(syntax.candidate, skipped)
+        since = self._started("STATIC_ANALYSIS")
+        try:
             async with asyncio.timeout(remaining):
-                return await adapter.analyze(source, syntax, deadline)
+                static = await adapter.analyze(source, syntax, deadline)
         except TimeoutError:
-            return _without_tools(syntax_candidate, _failed(ErrorCode.REVIEW_TIMEOUT))
-        except Exception as error:  # isolated at the stage boundary (§7.2)
-            logger.error("static analysis stage failed: %s", type(error).__name__)
-            return _without_tools(syntax_candidate, _failed(ErrorCode.STATIC_ANALYSIS_FAILURE))
+            failed = _failed(ErrorCode.REVIEW_TIMEOUT)
+            self._finished("STATIC_ANALYSIS", failed, since)
+            return _without_tools(syntax.candidate, failed)
+        except Exception as error:
+            failed = _failed(ErrorCode.STATIC_ANALYSIS_FAILURE)
+            self._finished("STATIC_ANALYSIS", failed, since, error)
+            return _without_tools(syntax.candidate, failed)
+        self._finished("STATIC_ANALYSIS", self._aggregate(static), since)
+        return static
 
     async def _ai(
         self, submission: ReviewSubmission, findings: tuple[Finding, ...], deadline: Deadline
     ) -> tuple[StageOutcome, AIReviewResult | None]:
+        descriptor = self._provider.descriptor
+        model = {
+            "ai_provider": descriptor.provider,
+            "ai_model": descriptor.model,
+            "prompt_version": descriptor.prompt_version,
+        }
         remaining = deadline.remaining()
         if not _may_start(remaining, self._options.ai_start_min_s):
-            return _skipped(SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT), None
-        started = self._clock.monotonic()
+            skipped = _skipped(SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT)
+            self._finished("AI_ANALYSIS", skipped, **model)
+            return skipped, None
+        started = self._started("AI_ANALYSIS", **model)
         request = AIReviewRequest(
             language=submission.language, source=submission.source, static_findings=findings
         )
+        failed, error = None, None
         try:
             async with asyncio.timeout(remaining):
                 result = await self._provider.review(request, deadline)
-        except ReviewError as error:
-            return _failed(error.code), None
+        except ReviewError as rejected:
+            failed = _failed(rejected.code)
         except TimeoutError:
-            return _failed(ErrorCode.REVIEW_TIMEOUT), None
-        except Exception as error:
-            logger.error("AI stage failed: %s", type(error).__name__)
-            return _failed(ErrorCode.AI_MODEL_UNAVAILABLE), None
-        elapsed = max(0, int((self._clock.monotonic() - started) * 1000))
-        return StageOutcome(status=OutcomeStatus.SUCCEEDED, duration_ms=elapsed), result
+            failed = _failed(ErrorCode.REVIEW_TIMEOUT)
+        except Exception as unexpected:
+            failed, error = _failed(ErrorCode.AI_MODEL_UNAVAILABLE), unexpected
+        if failed is not None:
+            self._finished("AI_ANALYSIS", failed, started, error, **model)
+            return failed, None
+        elapsed = self._elapsed_ms(started)
+        outcome = StageOutcome(status=OutcomeStatus.SUCCEEDED, duration_ms=elapsed)
+        self._finished("AI_ANALYSIS", outcome, started, attempt=result.attempts, **model)
+        return outcome, result
 
     async def _improve(
         self,
@@ -307,9 +376,30 @@ class ReviewOrchestrator:
         ai: StageOutcome,
         deadline: Deadline,
     ) -> tuple[StageOutcome, ImprovedCode]:
-        """The §14.5 decision table, top to bottom."""
-        if not self._options.improvement_enabled or self._improver is None:
-            return _skipped(SkipReason.DISABLED), _unavailable(None, IMPROVEMENT_DISABLED)
+        """Stage 10, by the §14.5 decision table, top to bottom. A skip logs only its finish."""
+        improver = self._improver if self._options.improvement_enabled else None
+        if improver is None:
+            skip = _skipped(SkipReason.DISABLED), _unavailable(None, IMPROVEMENT_DISABLED)
+        elif (dependency := self._dependency_skip(issues, ai)) is not None:
+            skip = dependency
+        else:
+            remaining = deadline.remaining()
+            if _may_start(remaining, self._options.improvement_start_min_s):
+                return await self._run_improver(improver, submission, issues, remaining, deadline)
+            code = ErrorCode.REVIEW_TIMEOUT
+            skip = (
+                _skipped(SkipReason.DEADLINE_EXCEEDED, code),
+                _unavailable(code, FAILURE_MESSAGES[code]),
+            )
+        self._finished("IMPROVEMENT", skip[0])
+        self._finished("IMPROVEMENT_VALIDATION", skip[0])  # no candidate, for the same reason
+        return skip
+
+    @staticmethod
+    def _dependency_skip(
+        issues: tuple[Issue, ...], ai: StageOutcome
+    ) -> tuple[StageOutcome, ImprovedCode] | None:
+        """§14.5 rows 2-4: improvement depends on the AI outcome and the issues."""
         ai_ok = ai.status is OutcomeStatus.SUCCEEDED
         if not ai_ok and ai.error_code in DEPENDENCY_CODES:
             code = ai.error_code
@@ -326,26 +416,40 @@ class ReviewOrchestrator:
             return _skipped(SkipReason.DEPENDENCY_FAILED, code), _unavailable(
                 code, FAILURE_MESSAGES[code]
             )
-        remaining = deadline.remaining()
-        if not _may_start(remaining, self._options.improvement_start_min_s):
-            code = ErrorCode.REVIEW_TIMEOUT
-            return _skipped(SkipReason.DEADLINE_EXCEEDED, code), _unavailable(
-                code, FAILURE_MESSAGES[code]
-            )
+        return None
+
+    async def _run_improver(
+        self,
+        improver: Improver,
+        submission: ReviewSubmission,
+        issues: tuple[Issue, ...],
+        remaining: float,
+        deadline: Deadline,
+    ) -> tuple[StageOutcome, ImprovedCode]:
+        since = self._started("IMPROVEMENT")
+        error, not_validated = None, None  # not_validated: the operation returned no candidate
         try:
             async with asyncio.timeout(remaining):
-                return await self._improver.improve(
+                outcome, improved = await improver.improve(
                     submission, issues[:PROMPT_MAX_IMPROVEMENT_ISSUES], deadline
                 )
-        except ReviewError as error:
-            return _failed(error.code), _unavailable(error.code, FAILURE_MESSAGES[error.code])
-        except TimeoutError:
+        except ReviewError as rejected:
+            outcome = _failed(rejected.code)
+            improved = _unavailable(rejected.code, FAILURE_MESSAGES[rejected.code])
+            if rejected.code is not ErrorCode.IMPROVED_CODE_INVALID:  # else validation ran
+                not_validated = _skipped(SkipReason.DEPENDENCY_FAILED, rejected.code)
+        except TimeoutError:  # the deadline cancelled the operation (§7.2)
             code = ErrorCode.REVIEW_TIMEOUT
-            return _failed(code), _unavailable(code, FAILURE_MESSAGES[code])
-        except Exception as error:
-            logger.error("improvement stage failed: %s", type(error).__name__)
-            code = ErrorCode.AI_MODEL_UNAVAILABLE
-            return _failed(code), _unavailable(code, FAILURE_MESSAGES[code])
+            outcome, improved = _failed(code), _unavailable(code, FAILURE_MESSAGES[code])
+            not_validated = _skipped(SkipReason.DEADLINE_EXCEEDED, code)
+        except Exception as unexpected:
+            code, error = ErrorCode.AI_MODEL_UNAVAILABLE, unexpected
+            outcome, improved = _failed(code), _unavailable(code, FAILURE_MESSAGES[code])
+            not_validated = _skipped(SkipReason.DEPENDENCY_FAILED, code)
+        self._finished("IMPROVEMENT", outcome, since, error)
+        if not_validated is not None:
+            self._finished("IMPROVEMENT_VALIDATION", not_validated)
+        return outcome, improved
 
     @staticmethod
     def _aggregate(static: StaticAnalysisResult) -> StageOutcome:
@@ -386,9 +490,10 @@ class ReviewOrchestrator:
         return tuple(warnings)
 
     @staticmethod
-    def _internal_error(stage: str, error: Exception) -> ReviewOutcome:
-        logger.error("review stage %s failed: %s", stage, type(error).__name__)
+    def _internal_error(error: Exception) -> ReviewOutcome:
         code = ErrorCode.INTERNAL_ERROR
         return ReviewOutcome(
-            ReviewStatus.FAILED, failure=ReviewFailure(code=code, message=FAILURE_MESSAGES[code])
+            ReviewStatus.FAILED,
+            failure=ReviewFailure(code=code, message=FAILURE_MESSAGES[code]),
+            error=error,
         )

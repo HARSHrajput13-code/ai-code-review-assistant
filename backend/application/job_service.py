@@ -3,18 +3,25 @@
 Each created review runs in a background asyncio task that holds a strong reference and is gated
 by asyncio.Semaphore(REVIEW_MAX_CONCURRENT). Time comes from the injected clock, so the queue
 deadline and the TTL purge are evaluated on every submit and get (no timers).
+
+Every terminal transition logs exactly one `review.finished` (§19.1): `_run` for a review it ran,
+`sweep` for one that timed out in the queue. The in-memory store never holds its lock across an
+await, so each call completes without yielding and a PENDING review is either failed by a sweep
+or started by its task, never both. A review cancelled at shutdown never reaches a terminal
+state, so its interrupted stage logs no finish and the review logs no `review.finished`.
 """
 
 import asyncio
 import hashlib
 import json
-import logging
 from collections.abc import Callable
+from contextvars import copy_context
 from datetime import timedelta
 from typing import Protocol
 from uuid import UUID, uuid4
 
 from backend.application.deadline import Clock, MonotonicDeadline
+from backend.application.events import bound, request_id_var, review_finished, review_id_var
 from backend.application.orchestrator import ProgressReporter, ReviewOutcome
 from backend.application.validation import SubmissionValidator
 from shared.domain.enums import ErrorCode, ReviewStage, ReviewStatus
@@ -22,8 +29,6 @@ from shared.domain.errors import IdempotencyConflict, ReviewNotFound
 from shared.domain.interfaces import Deadline, IdempotencyRecord, LanguageAdapter, ReviewJobStore
 from shared.domain.models import ReviewFailure, ReviewSubmission
 from shared.domain.review import CodeReview, enter_improvement, fail, finish, new_review, start
-
-logger = logging.getLogger(__name__)
 
 QUEUE_TIMEOUT_MESSAGE = "The review waited too long to start."
 INTERNAL_MESSAGE = "An unexpected error occurred."
@@ -72,6 +77,7 @@ class ReviewJobService:
         self._timeout = review_timeout_seconds
         self._new_id = new_id
         self._tasks: set[asyncio.Task[None]] = set()
+        self._origins: dict[UUID, str | None] = {}  # request ID per scheduled review
 
     async def submit(
         self, language: str, source_code: str, idempotency_key: str | None = None
@@ -102,9 +108,15 @@ class ReviewJobService:
         )
         stored, created = await self._store.create_or_replay(review, submission, record)  # 12-13
         if created:
-            task = asyncio.create_task(self._run(stored.review_id, submission, adapter))
+            # The task runs in a copy of this request's context, bound to its review (§19.1).
+            review_id = stored.review_id
+            context = copy_context()
+            context.run(review_id_var.set, str(review_id))
+            self._origins[review_id] = request_id_var.get()
+            task = asyncio.create_task(self._run(review_id, submission, adapter), context=context)
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
+            task.add_done_callback(lambda _: self._origins.pop(review_id, None))
         return stored, created
 
     async def get(self, review_id: UUID) -> CodeReview:
@@ -124,7 +136,11 @@ class ReviewJobService:
                 failure = ReviewFailure(
                     code=ErrorCode.REVIEW_TIMEOUT, message=QUEUE_TIMEOUT_MESSAGE
                 )
-                await self._store.replace(fail(review, failure, now))
+                final = fail(review, failure, now)
+                await self._store.replace(final)
+                # Any request may sweep: log under the request that created the review.
+                with bound(self._origins.get(review.review_id), str(review.review_id)):
+                    review_finished(final, refs_rejected=0)
 
     async def shutdown(self) -> None:
         """Cancel running and queued tasks."""
@@ -136,6 +152,9 @@ class ReviewJobService:
         """Await every scheduled review (used by tests and graceful shutdown)."""
         while self._tasks:
             await asyncio.gather(*list(self._tasks), return_exceptions=True)
+            # gather over finished tasks completes without yielding (Python 3.14), so let their
+            # done callbacks, which remove them from the set, run before checking again.
+            await asyncio.sleep(0)
 
     async def _run(
         self, review_id: UUID, submission: ReviewSubmission, adapter: LanguageAdapter
@@ -158,9 +177,10 @@ class ReviewJobService:
             try:
                 outcome = await self._orchestrator.run(submission, adapter, deadline, report)
             except Exception as error:
-                logger.error("review %s failed: %s", review_id, type(error).__name__)
                 failure = ReviewFailure(code=ErrorCode.INTERNAL_ERROR, message=INTERNAL_MESSAGE)
-                await self._store.replace(fail(review, failure, self._clock.now()))
+                final = fail(review, failure, self._clock.now())
+                await self._store.replace(final)
+                review_finished(final, refs_rejected=0, error=error)
                 return
             now = self._clock.now()
             if outcome.result is not None:
@@ -171,3 +191,4 @@ class ReviewJobService:
                 )
                 final = fail(review, failure, now)
             await self._store.replace(final)  # also releases the submission
+            review_finished(final, outcome.refs_rejected, outcome.error)
