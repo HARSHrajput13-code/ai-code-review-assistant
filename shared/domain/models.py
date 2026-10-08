@@ -1,8 +1,6 @@
-"""Immutable domain models used by static analysis (CIS §5.0, §5.2, §5.3, §5.6).
+"""Immutable domain models (CIS §5.0-§5.6). The review aggregate is in `shared.domain.review`."""
 
-The remaining §5 models (issues, score, coverage, results, the review aggregate) are PR-03.
-"""
-
+from datetime import datetime
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -11,11 +9,17 @@ from shared.domain.enums import (
     Category,
     Confidence,
     ErrorCode,
+    ImprovedCodeStatus,
+    Language,
     LocationStatus,
     OutcomeStatus,
     Provenance,
+    ScoreBand,
+    ScoreCap,
     Severity,
+    SeveritySource,
     SkipReason,
+    SummarySource,
 )
 
 # One limit per text field (CIS §5.3, D-42).
@@ -183,3 +187,199 @@ class StaticAnalysisResult(DomainModel):
             for t in self.tools
             if t.tool != "python-parser"
         )
+
+
+class ReviewSubmission(DomainModel):
+    language: Language
+    source: SourceText
+
+
+class SeverityCounts(DomainModel):
+    critical: int = Field(default=0, ge=0)
+    high: int = Field(default=0, ge=0)
+    medium: int = Field(default=0, ge=0)
+    low: int = Field(default=0, ge=0)
+
+
+class IssueSource(DomainModel):
+    finding_id: str
+    origin: str
+    rule_key: str | None
+
+
+MAX_ADDITIONAL_LOCATIONS = 20
+
+
+class Issue(DomainModel):
+    """A deduplicated, user-facing problem (§5.4)."""
+
+    issue_id: str = Field(pattern=r"^ISS-[0-9]{3,}$")
+    severity: Severity
+    severity_source: SeveritySource
+    category: Category
+    title: str = Field(min_length=1, max_length=TEXT_LIMITS["title"])
+    summary: str = Field(min_length=1, max_length=TEXT_LIMITS["summary"])
+    impact: str = Field(min_length=1, max_length=TEXT_LIMITS["impact"])
+    recommendation: str = Field(min_length=1, max_length=TEXT_LIMITS["recommendation"])
+    location: Location | None
+    additional_locations: tuple[Location, ...] = Field(max_length=MAX_ADDITIONAL_LOCATIONS)
+    occurrence_count: int = Field(ge=1)
+    provenance: Provenance
+    confidence: Confidence
+    sources: tuple[IssueSource, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        keys = [(loc.start_line, loc.end_line) for loc in self.additional_locations]
+        if keys != sorted(keys):
+            raise ValueError("additional_locations must be sorted")
+        if self.location is not None and self.occurrence_count < 1 + len(keys):
+            raise ValueError("occurrence_count is below the number of locations")
+        return self
+
+
+class CategoryScore(DomainModel):
+    category: Category
+    assessed: bool
+    score: int | None = Field(ge=0, le=100)
+    issue_count: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.assessed != (self.score is not None):
+            raise ValueError("an assessed category has a score; an unassessed one has none")
+        if not self.assessed and self.issue_count:
+            raise ValueError("an unassessed category has no issues")
+        return self
+
+
+def band_for(overall: int) -> ScoreBand:
+    """§13.6."""
+    if overall >= 90:
+        return ScoreBand.EXCELLENT
+    if overall >= 75:
+        return ScoreBand.GOOD
+    if overall >= 50:
+        return ScoreBand.FAIR
+    if overall >= 25:
+        return ScoreBand.POOR
+    return ScoreBand.VERY_POOR
+
+
+class Score(DomainModel):
+    overall: int = Field(ge=0, le=100)
+    band: ScoreBand
+    provisional: bool
+    assessed_weight: int = Field(ge=0, le=100)
+    categories: tuple[CategoryScore, ...]
+    caps_applied: tuple[ScoreCap, ...]
+    policy_version: str
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if tuple(c.category for c in self.categories) != tuple(Category):
+            raise ValueError("exactly the six categories, in canonical order")
+        if self.band is not band_for(self.overall):
+            raise ValueError("band does not match overall")
+        return self
+
+
+class Coverage(DomainModel):
+    complete: bool
+    unassessed_categories: tuple[Category, ...]
+    missing_components: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.unassessed_categories != tuple(
+            c for c in Category if c in self.unassessed_categories
+        ):
+            raise ValueError("unassessed_categories must be in canonical order")
+        order = ("ai", "pylint", "bandit")
+        if self.missing_components != tuple(c for c in order if c in self.missing_components):
+            raise ValueError("missing_components must be from ai, pylint, bandit, in that order")
+        return self
+
+
+class AIReviewResult(DomainModel):
+    summary: str = Field(min_length=1, max_length=1500)
+    candidates: tuple[FindingCandidate, ...]
+    dropped_issue_count: int = Field(ge=0)
+    attempts: int = Field(ge=1, le=2)
+
+
+class ImprovedCode(DomainModel):
+    status: ImprovedCodeStatus
+    code: str | None
+    notes: tuple[str, ...] = Field(default=(), max_length=10)
+    failure_code: ErrorCode | None = None
+    message: str | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        available = self.status is ImprovedCodeStatus.AVAILABLE
+        if available != (self.code is not None):
+            raise ValueError("code is present if and only if AVAILABLE")
+        if self.status is ImprovedCodeStatus.UNAVAILABLE and not self.message:
+            raise ValueError("UNAVAILABLE requires a message")
+        if self.failure_code is not None and self.status is not ImprovedCodeStatus.UNAVAILABLE:
+            raise ValueError("failure_code is only for UNAVAILABLE")
+        return self
+
+
+class AnalysisReport(DomainModel):
+    static_analysis: StageOutcome
+    static_tools: tuple[ToolOutcome, ...]
+    ai_analysis: StageOutcome
+    improvement: StageOutcome
+
+
+class ReviewSummary(DomainModel):
+    text: str = Field(min_length=1, max_length=1500)
+    source: SummarySource
+
+
+class ReviewMetadata(DomainModel):
+    ai_provider: str | None
+    ai_model: str | None
+    prompt_version: str | None
+    scoring_policy_version: str
+    analyzer_versions: tuple[ToolVersion, ...]
+    source_bytes: int = Field(ge=0)
+    source_lines: int = Field(ge=0)
+    started_at: datetime
+    finished_at: datetime
+    duration_ms: int = Field(ge=0)
+
+
+class ReviewWarning(DomainModel):
+    code: str
+    message: str
+
+
+MAX_ISSUES_RETURNED = 50  # policy (§5.6)
+
+
+class ReviewResult(DomainModel):
+    summary: ReviewSummary
+    score: Score
+    coverage: Coverage
+    issues: tuple[Issue, ...] = Field(max_length=MAX_ISSUES_RETURNED)
+    total_issue_count: int = Field(ge=0)
+    severity_counts: SeverityCounts
+    issues_truncated: bool
+    improved_code: ImprovedCode
+    analysis: AnalysisReport
+    warnings: tuple[ReviewWarning, ...]
+    metadata: ReviewMetadata
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.issues_truncated != (self.total_issue_count > len(self.issues)):
+            raise ValueError("issues_truncated does not match the counts")
+        return self
+
+
+class ReviewFailure(DomainModel):
+    code: ErrorCode
+    message: str = Field(min_length=1, max_length=200)

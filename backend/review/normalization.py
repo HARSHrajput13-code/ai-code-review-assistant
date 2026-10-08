@@ -1,16 +1,10 @@
 """Candidate normalization (CIS §12.2). Pure and deterministic."""
 
-import unicodedata
-
 from shared.domain.enums import LocationStatus, Provenance
 from shared.domain.models import TEXT_LIMITS, FindingCandidate
+from shared.domain.text import strip_control
 
 ELLIPSIS = "…"
-
-
-def strip_control(text: str) -> str:
-    """Remove control characters other than newline and tab."""
-    return "".join(ch for ch in text if ch in "\n\t" or unicodedata.category(ch) != "Cc")
 
 
 def truncate(text: str, limit: int) -> str:

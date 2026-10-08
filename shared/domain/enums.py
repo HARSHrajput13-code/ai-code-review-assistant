@@ -40,6 +40,10 @@ class Confidence(StrEnum):
     MEDIUM = "MEDIUM"
     LOW = "LOW"
 
+    @property
+    def rank(self) -> int:
+        return {"HIGH": 3, "MEDIUM": 2, "LOW": 1}[self.value]
+
 
 class LocationStatus(StrEnum):
     SOURCE_MATCHED = "SOURCE_MATCHED"
@@ -83,3 +87,54 @@ class ErrorCode(StrEnum):
     IMPROVED_CODE_INVALID = "IMPROVED_CODE_INVALID"
     REVIEW_TIMEOUT = "REVIEW_TIMEOUT"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+
+
+class SeveritySource(StrEnum):
+    STATIC = "STATIC"
+    AI = "AI"
+
+
+class ReviewStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+
+    @property
+    def terminal(self) -> bool:
+        return self in (ReviewStatus.COMPLETED, ReviewStatus.PARTIAL, ReviewStatus.FAILED)
+
+
+class ReviewStage(StrEnum):
+    QUEUED = "QUEUED"
+    ANALYZING = "ANALYZING"
+    GENERATING_IMPROVEMENT = "GENERATING_IMPROVEMENT"
+    FINISHED = "FINISHED"
+
+
+class ImprovedCodeStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    NOT_NEEDED = "NOT_NEEDED"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class ScoreBand(StrEnum):
+    EXCELLENT = "EXCELLENT"
+    GOOD = "GOOD"
+    FAIR = "FAIR"
+    POOR = "POOR"
+    VERY_POOR = "VERY_POOR"
+
+
+class ScoreCap(StrEnum):
+    """Members are declared in the canonical order (§13.4)."""
+
+    UNPARSEABLE_SOURCE = "UNPARSEABLE_SOURCE"
+    CRITICAL_ISSUE = "CRITICAL_ISSUE"
+    HIGH_CORRECTNESS_OR_SECURITY = "HIGH_CORRECTNESS_OR_SECURITY"
+
+
+class SummarySource(StrEnum):
+    AI = "AI"
+    GENERATED = "GENERATED"
