@@ -24,6 +24,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from backend.api.dtos import ErrorDetail
 from backend.api.errors import error_response, internal_error
+from backend.application.events import diagnostics
 from shared.domain.enums import ErrorCode
 from shared.domain.errors import InputTooLarge, InvalidRequest, UnsupportedMediaType
 
@@ -116,8 +117,7 @@ class RequestGuard:
             except Exception as error:  # §6.6: 500 INTERNAL_ERROR, no traceback in the body
                 logger.error(
                     "request.failed",
-                    exc_info=error,
-                    extra={"method": scope["method"], "path": scope["path"]},
+                    extra={"method": scope["method"], "path": scope["path"], **diagnostics(error)},
                 )
                 if not started:
                     await internal_error(rid)(scope, receive, send_with_id)

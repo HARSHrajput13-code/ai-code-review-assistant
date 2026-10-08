@@ -2,31 +2,49 @@
 
 Records carry only whitelisted metadata. Exceptions are rendered as their type and stack frames
 (file, line, function): never the exception message, which can contain input, and never local
-variables. No configuration enables payload logging.
+variables. No configuration enables payload logging. The context variables, the exception
+rendering and the review events live in `backend.application.events`, which the application
+layer can import.
 """
 
 import json
 import logging
 import sys
-import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
-from contextvars import ContextVar
 from datetime import UTC, datetime
-from pathlib import Path
 
+from backend.application.events import diagnostics, request_id_var, review_id_var
 from backend.config import LogFormat, Settings
-
-request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 # Metadata that may be attached with `extra=` (§19.1). Anything else is dropped.
 ALLOWED_FIELDS = (
+    "request_id",
     "review_id",
     "stage",
     "status",
     "duration_ms",
     "error_code",
+    "skip_reason",
     "replayed",
+    "ai_provider",
+    "ai_model",
+    "prompt_version",
+    "attempt",
+    "seed",
+    "num_predict",
+    "prompt_eval_count",
+    "eval_count",
+    "token_estimate_exceeded",
+    "thinking_emitted",
+    "score",
+    "assessed_weight",
+    "coverage",
+    "severity_counts",
+    "outcomes",
+    "refs_rejected",
+    "exception_type",
+    "traceback",
     "method",
     "path",
     "status_code",
@@ -51,15 +69,11 @@ def _fields(record: logging.LogRecord) -> dict[str, object]:
         "logger": record.name,
         "event": record.getMessage(),
         "request_id": request_id_var.get(),
+        "review_id": review_id_var.get(),
     }
     fields.update({k: getattr(record, k) for k in ALLOWED_FIELDS if hasattr(record, k)})
-    if record.exc_info and record.exc_info[1] is not None:
-        error = record.exc_info[1]
-        fields["exception_type"] = type(error).__name__
-        fields["traceback"] = [
-            f"{Path(frame.filename).name}:{frame.lineno} in {frame.name}"
-            for frame in traceback.extract_tb(error.__traceback__)
-        ]
+    if record.exc_info and record.exc_info[1] is not None:  # e.g. a third-party record
+        fields.update(diagnostics(record.exc_info[1]))
     return {k: v for k, v in fields.items() if v is not None}
 
 
