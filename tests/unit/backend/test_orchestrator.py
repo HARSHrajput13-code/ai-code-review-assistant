@@ -1,6 +1,7 @@
 """ReviewOrchestrator stage sequence, status and degradation (CIS §5.7, §7.2, §14.5, §20.3)."""
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
@@ -51,9 +52,10 @@ def run(
     improver: FakeImprover | None = None,
     deadline: Deadline | None = None,
     submission: ReviewSubmission = SUBMISSION,
+    clock: FakeClock | None = None,
     **options: Any,
 ) -> tuple[ReviewOutcome, list[ReviewStage]]:
-    clock = FakeClock()
+    clock = clock or FakeClock()
     orchestrator = ReviewOrchestrator(
         provider or FakeAIReviewProvider(), clock, OrchestratorOptions(**options), improver
     )
@@ -172,10 +174,13 @@ def test_attempt_timeout_is_bounded_by_the_remaining_deadline() -> None:
 
 def test_deadline_exhaustion_during_the_ai_stage_is_partial_review_timeout() -> None:
     slow = FakeAIReviewProvider(review_script=[FakeResponse(delay_s=5)])
-    # remaining(): static bound, AI start threshold, then the AI operation's bound.
-    outcome, _ = run(provider=slow, deadline=ScriptedDeadline([300, 300, 0.05]))
+    # remaining(): 300 for the static stage, then 1 ms, which starts and bounds the AI call (the
+    # start threshold is lowered so the call starts at all); the 5 s call is cancelled at 1 ms.
+    deadline = ScriptedDeadline([300, 0.001])
+    outcome, _ = run(provider=slow, deadline=deadline, ai_start_min_s=0)
     assert outcome.status is ReviewStatus.PARTIAL
-    assert result(outcome).analysis.ai_analysis.error_code is ErrorCode.REVIEW_TIMEOUT
+    ai = result(outcome).analysis.ai_analysis
+    assert (ai.status, ai.error_code) == (OutcomeStatus.FAILED, ErrorCode.REVIEW_TIMEOUT)
 
 
 def test_ai_is_skipped_with_less_than_5_seconds_left() -> None:
@@ -277,3 +282,120 @@ def test_truncation_and_dropped_issue_warnings() -> None:
 
 def test_the_same_inputs_give_an_identical_result() -> None:
     assert run(improver=FakeImprover())[0] == run(improver=FakeImprover())[0]
+
+
+# --- Governing deadline (D-48, §7.1, §7.2): an exhausted deadline never means "no limit".
+
+
+@dataclass
+class WatchedAdapter(StubAdapter):
+    """Counts analyze calls; optionally moves the fake clock or never finishes."""
+
+    clock: FakeClock | None = None
+    advance_s: float = 0.0
+    hang: bool = False
+    analyzed: int = 0
+
+    async def analyze(self, source: Any, syntax: Any, deadline: Any) -> Any:
+        self.analyzed += 1
+        if self.clock is not None:
+            self.clock.advance(self.advance_s)
+        if self.hang:
+            await asyncio.Event().wait()
+        return await super().analyze(source, syntax, deadline)
+
+
+@dataclass
+class ClockedProvider(FakeAIReviewProvider):
+    """The first provider attempt consumes `advance_s` of the fake clock."""
+
+    clock: FakeClock | None = None
+    advance_s: float = 0.0
+
+    async def _call(self, *args: Any) -> str:
+        if self.clock is not None:
+            self.clock.advance(self.advance_s)
+            self.advance_s = 0.0
+        return await super()._call(*args)
+
+
+@pytest.mark.parametrize("seconds", [0, -5])
+def test_an_exhausted_deadline_starts_no_stage(seconds: float) -> None:
+    clock = FakeClock()
+    adapter, provider, improver = WatchedAdapter(), FakeAIReviewProvider(), FakeImprover()
+    outcome, _ = run(
+        adapter, provider, improver, MonotonicDeadline(clock, seconds), clock=clock,
+        ai_start_min_s=0, improvement_start_min_s=0,
+    )  # fmt: skip
+    assert (adapter.analyzed, provider.calls, improver.calls) == (0, [], [])
+    assert outcome.status is ReviewStatus.FAILED
+    assert outcome.failure is not None and outcome.failure.code is ErrorCode.REVIEW_TIMEOUT
+
+
+@pytest.mark.parametrize("seconds", [0, -5])
+def test_static_tools_never_start_without_time_left(seconds: float) -> None:
+    adapter = WatchedAdapter()
+    outcome, _ = run(adapter, deadline=ScriptedDeadline([seconds, 300]))
+    tools = result(outcome).analysis.static_tools
+    assert adapter.analyzed == 0 and outcome.status is ReviewStatus.PARTIAL
+    assert {(t.outcome.status, t.outcome.skip_reason, t.outcome.error_code) for t in tools} == {
+        (OutcomeStatus.SKIPPED, SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT)
+    }
+
+
+@pytest.mark.parametrize("left", [0, -5])
+def test_a_deadline_exhausted_by_static_analysis_skips_ai_even_with_no_threshold(
+    left: float,
+) -> None:
+    clock = FakeClock()
+    adapter = WatchedAdapter(clock=clock, advance_s=300 - left)
+    provider = FakeAIReviewProvider()
+    outcome, _ = run(
+        adapter, provider, FakeImprover(), MonotonicDeadline(clock, 300), clock=clock,
+        ai_start_min_s=0, improvement_start_min_s=0,
+    )  # fmt: skip
+    ai = result(outcome).analysis.ai_analysis
+    assert (ai.status, ai.skip_reason, ai.error_code) == (
+        OutcomeStatus.SKIPPED, SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT,
+    )  # fmt: skip
+    assert provider.calls == [] and outcome.status is ReviewStatus.PARTIAL
+
+
+@pytest.mark.parametrize("left", [0, -5])
+def test_improvement_never_starts_without_time_left(left: float) -> None:
+    clock = FakeClock()
+    provider = ClockedProvider(clock=clock, advance_s=300 - left)
+    improver = FakeImprover()
+    outcome, _ = run(
+        provider=provider, improver=improver, deadline=MonotonicDeadline(clock, 300), clock=clock,
+        improvement_start_min_s=0,
+    )  # fmt: skip
+    improvement = result(outcome).analysis.improvement
+    assert (improvement.skip_reason, improvement.error_code) == (
+        SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT,
+    )  # fmt: skip
+    assert improver.calls == [] and result(outcome).improved_code.code is None
+    assert outcome.status is ReviewStatus.PARTIAL
+
+
+def test_a_positive_remaining_time_bounds_the_static_stage() -> None:
+    # 1 ms left: the hanging analysis is cancelled at the deadline instead of running unbounded.
+    outcome, _ = run(WatchedAdapter(hang=True), deadline=ScriptedDeadline([0.001, 300]))
+    tools = result(outcome).analysis.static_tools
+    assert {(t.outcome.status, t.outcome.error_code) for t in tools} == {
+        (OutcomeStatus.FAILED, ErrorCode.REVIEW_TIMEOUT)
+    }
+    assert outcome.status is ReviewStatus.PARTIAL
+
+
+@pytest.mark.parametrize(("consumed", "calls"), [(285, 1), (270, 2)])
+def test_the_retry_respects_the_governing_deadline(consumed: float, calls: int) -> None:
+    clock = FakeClock()
+    provider = ClockedProvider(
+        review_script=[INVALID_JSON, INVALID_JSON], clock=clock, advance_s=consumed
+    )
+    outcome, _ = run(provider=provider, deadline=MonotonicDeadline(clock, 300), clock=clock)
+    assert len(provider.calls) == calls  # no retry with < 20 s left (§9.4)
+    if calls == 2:
+        assert provider.calls[1].timeout_s == 300 - consumed  # min(180, remaining)
+    assert result(outcome).analysis.ai_analysis.error_code is ErrorCode.AI_OUTPUT_INVALID
