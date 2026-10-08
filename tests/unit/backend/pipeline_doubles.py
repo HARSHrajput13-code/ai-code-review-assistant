@@ -1,24 +1,30 @@
 """Doubles for orchestrator and job-service tests (CIS §20.2)."""
 
+import asyncio
 from dataclasses import dataclass, field
+from typing import Any
 
 from ai.fake import FakeAIReviewProvider
 from analysis.python import rules
 from analysis.python.syntax import check_syntax, validate_generated_code
+from backend.application.orchestrator import ReviewOutcome
 from shared.domain.enums import (
     Category,
     ErrorCode,
     ImprovedCodeStatus,
     Language,
     OutcomeStatus,
+    ReviewStage,
+    ReviewStatus,
     SkipReason,
 )
-from shared.domain.interfaces import AIImprovementRequest, Deadline
+from shared.domain.interfaces import AIImprovementRequest, Deadline, ProviderHealth
 from shared.domain.models import (
     CodeValidation,
     FindingCandidate,
     ImprovedCode,
     Issue,
+    ReviewFailure,
     ReviewSubmission,
     SourceText,
     StageOutcome,
@@ -59,6 +65,9 @@ class StubAdapter:
     error: Exception | None = None
     language: Language = Language.PYTHON
     display_name: str = "Python"
+    tools_health: ProviderHealth = ProviderHealth(
+        available=True, detail="pylint 4.1.2, bandit 1.9.4"
+    )
 
     def covered_categories(self, tool: str) -> tuple[Category, ...]:
         return rules.covered_categories(tool)
@@ -91,6 +100,9 @@ class StubAdapter:
     def tool_versions(self) -> tuple[ToolVersion, ...]:
         return (ToolVersion(tool="pylint", version="4.1.2"),)
 
+    def health(self) -> ProviderHealth:
+        return self.tools_health
+
 
 @dataclass
 class FakeImprover:
@@ -111,3 +123,18 @@ class FakeImprover:
             improved = await self.provider.improve(request, deadline)
             return OK, ImprovedCode(status=ImprovedCodeStatus.AVAILABLE, code=improved.code)
         return self.result or (OK, ImprovedCode(status=ImprovedCodeStatus.AVAILABLE, code="x = 1"))
+
+
+class GatedRunner:
+    """Holds every review until released; then fails it (no result needed)."""
+
+    def __init__(self) -> None:
+        self.gate = asyncio.Event()
+        self.runs = 0
+
+    async def run(self, submission: Any, adapter: Any, deadline: Any, report: Any) -> ReviewOutcome:
+        self.runs += 1
+        await report(ReviewStage.GENERATING_IMPROVEMENT)
+        await self.gate.wait()
+        failure = ReviewFailure(code=ErrorCode.INTERNAL_ERROR, message="stub")
+        return ReviewOutcome(ReviewStatus.FAILED, failure=failure)
