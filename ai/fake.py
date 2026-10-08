@@ -99,7 +99,7 @@ class FakeAIReviewProvider:
         return ProviderDescriptor(provider="fake", model="fake", prompt_version=self.prompt_version)
 
     async def check_health(self, timeout_s: float) -> ProviderHealth:
-        return ProviderHealth(available=True, detail="Fake provider")
+        return ProviderHealth(available=True, detail="fake provider")  # §6.5
 
     async def review(self, request: AIReviewRequest, deadline: Deadline) -> AIReviewResult:
         async def attempt(number: int) -> AIReviewResult:
