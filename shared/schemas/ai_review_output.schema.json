@@ -1,0 +1,145 @@
+{
+  "$defs": {
+    "AIIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/Category"
+        },
+        "end_line": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "End Line"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Evidence"
+        },
+        "impact": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Impact",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Line"
+        },
+        "recommendation": {
+          "maxLength": 800,
+          "minLength": 1,
+          "title": "Recommendation",
+          "type": "string"
+        },
+        "related_static_ids": {
+          "items": {
+            "pattern": "^S[0-9]{1,4}$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Related Static Ids",
+          "type": "array"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "summary": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 150,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "severity",
+        "category",
+        "title",
+        "line",
+        "end_line",
+        "evidence",
+        "summary",
+        "impact",
+        "recommendation",
+        "related_static_ids"
+      ],
+      "title": "AIIssue",
+      "type": "object"
+    },
+    "Category": {
+      "description": "Members are declared in the canonical order.",
+      "enum": [
+        "CORRECTNESS",
+        "SECURITY",
+        "PERFORMANCE",
+        "READABILITY",
+        "MAINTAINABILITY",
+        "BEST_PRACTICE"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "Severity": {
+      "enum": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW"
+      ],
+      "title": "Severity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/AIIssue"
+      },
+      "maxItems": 20,
+      "title": "Issues",
+      "type": "array"
+    },
+    "summary": {
+      "maxLength": 1500,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "summary",
+    "issues"
+  ],
+  "title": "AIReviewOutput",
+  "type": "object"
+}

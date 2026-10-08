@@ -1,0 +1,1453 @@
+{
+  "components": {
+    "schemas": {
+      "AnalysisDTO": {
+        "properties": {
+          "ai_analysis": {
+            "$ref": "#/components/schemas/StageOutcomeDTO"
+          },
+          "improvement": {
+            "$ref": "#/components/schemas/StageOutcomeDTO"
+          },
+          "static_analysis": {
+            "$ref": "#/components/schemas/StageOutcomeDTO"
+          },
+          "static_tools": {
+            "items": {
+              "$ref": "#/components/schemas/ToolOutcomeDTO"
+            },
+            "title": "Static Tools",
+            "type": "array"
+          }
+        },
+        "required": [
+          "static_analysis",
+          "static_tools",
+          "ai_analysis",
+          "improvement"
+        ],
+        "title": "AnalysisDTO",
+        "type": "object"
+      },
+      "Capabilities": {
+        "properties": {
+          "improvement_enabled": {
+            "title": "Improvement Enabled",
+            "type": "boolean"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/LanguageDTO"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/LimitsDTO"
+          },
+          "review_timeout_seconds": {
+            "title": "Review Timeout Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "languages",
+          "limits",
+          "review_timeout_seconds",
+          "improvement_enabled"
+        ],
+        "title": "Capabilities",
+        "type": "object"
+      },
+      "Category": {
+        "description": "Members are declared in the canonical order.",
+        "enum": [
+          "CORRECTNESS",
+          "SECURITY",
+          "PERFORMANCE",
+          "READABILITY",
+          "MAINTAINABILITY",
+          "BEST_PRACTICE"
+        ],
+        "title": "Category",
+        "type": "string"
+      },
+      "CategoryScoreDTO": {
+        "properties": {
+          "assessed": {
+            "title": "Assessed",
+            "type": "boolean"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "issue_count": {
+            "title": "Issue Count",
+            "type": "integer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "required": [
+          "category",
+          "assessed",
+          "score",
+          "issue_count"
+        ],
+        "title": "CategoryScoreDTO",
+        "type": "object"
+      },
+      "ComponentDTO": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "detail"
+        ],
+        "title": "ComponentDTO",
+        "type": "object"
+      },
+      "ComponentsDTO": {
+        "properties": {
+          "ai_provider": {
+            "$ref": "#/components/schemas/ComponentDTO"
+          },
+          "persistence": {
+            "$ref": "#/components/schemas/ComponentDTO"
+          },
+          "static_tools": {
+            "$ref": "#/components/schemas/ComponentDTO"
+          }
+        },
+        "required": [
+          "ai_provider",
+          "static_tools",
+          "persistence"
+        ],
+        "title": "ComponentsDTO",
+        "type": "object"
+      },
+      "Confidence": {
+        "enum": [
+          "HIGH",
+          "MEDIUM",
+          "LOW"
+        ],
+        "title": "Confidence",
+        "type": "string"
+      },
+      "CoverageDTO": {
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "missing_components": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Components",
+            "type": "array"
+          },
+          "unassessed_categories": {
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            },
+            "title": "Unassessed Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "complete",
+          "unassessed_categories",
+          "missing_components"
+        ],
+        "title": "CoverageDTO",
+        "type": "object"
+      },
+      "ErrorBody": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorInfo"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorBody",
+        "type": "object"
+      },
+      "ErrorCode": {
+        "description": "CIS §17.1.",
+        "enum": [
+          "INVALID_REQUEST",
+          "UNSUPPORTED_MEDIA_TYPE",
+          "EMPTY_CODE",
+          "INPUT_TOO_LARGE",
+          "UNSUPPORTED_LANGUAGE",
+          "IDEMPOTENCY_CONFLICT",
+          "SERVICE_BUSY",
+          "REVIEW_NOT_FOUND",
+          "STATIC_ANALYSIS_FAILURE",
+          "AI_MODEL_UNAVAILABLE",
+          "AI_OUTPUT_INVALID",
+          "AI_CONTEXT_EXCEEDED",
+          "IMPROVED_CODE_INVALID",
+          "REVIEW_TIMEOUT",
+          "INTERNAL_ERROR"
+        ],
+        "title": "ErrorCode",
+        "type": "string"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "problem": {
+            "title": "Problem",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "problem"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "ErrorInfo": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "details",
+          "request_id"
+        ],
+        "title": "ErrorInfo",
+        "type": "object"
+      },
+      "FailureDTO": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "FailureDTO",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "ImprovedCodeDTO": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ImprovedCodeStatus"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "notes",
+          "failure_code",
+          "message"
+        ],
+        "title": "ImprovedCodeDTO",
+        "type": "object"
+      },
+      "ImprovedCodeStatus": {
+        "enum": [
+          "AVAILABLE",
+          "NOT_NEEDED",
+          "UNAVAILABLE"
+        ],
+        "title": "ImprovedCodeStatus",
+        "type": "string"
+      },
+      "IssueDTO": {
+        "properties": {
+          "additional_locations": {
+            "items": {
+              "$ref": "#/components/schemas/LocationDTO"
+            },
+            "title": "Additional Locations",
+            "type": "array"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/Confidence"
+          },
+          "impact": {
+            "title": "Impact",
+            "type": "string"
+          },
+          "issue_id": {
+            "title": "Issue Id",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocationDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "occurrence_count": {
+            "title": "Occurrence Count",
+            "type": "integer"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "recommendation": {
+            "title": "Recommendation",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "severity_source": {
+            "$ref": "#/components/schemas/SeveritySource"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/IssueSourceDTO"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_id",
+          "severity",
+          "severity_source",
+          "category",
+          "title",
+          "location",
+          "additional_locations",
+          "occurrence_count",
+          "summary",
+          "impact",
+          "recommendation",
+          "provenance",
+          "confidence",
+          "sources"
+        ],
+        "title": "IssueDTO",
+        "type": "object"
+      },
+      "IssueSourceDTO": {
+        "properties": {
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "rule_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Key"
+          }
+        },
+        "required": [
+          "origin",
+          "rule_key"
+        ],
+        "title": "IssueSourceDTO",
+        "type": "object"
+      },
+      "Language": {
+        "enum": [
+          "python"
+        ],
+        "title": "Language",
+        "type": "string"
+      },
+      "LanguageDTO": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/Language"
+          },
+          "monaco_language": {
+            "title": "Monaco Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "display_name",
+          "monaco_language"
+        ],
+        "title": "LanguageDTO",
+        "type": "object"
+      },
+      "LimitsDTO": {
+        "properties": {
+          "max_source_bytes": {
+            "title": "Max Source Bytes",
+            "type": "integer"
+          },
+          "max_source_lines": {
+            "title": "Max Source Lines",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_source_bytes",
+          "max_source_lines"
+        ],
+        "title": "LimitsDTO",
+        "type": "object"
+      },
+      "LocationDTO": {
+        "properties": {
+          "end_line": {
+            "title": "End Line",
+            "type": "integer"
+          },
+          "start_line": {
+            "title": "Start Line",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start_line",
+          "end_line"
+        ],
+        "title": "LocationDTO",
+        "type": "object"
+      },
+      "MetadataDTO": {
+        "properties": {
+          "ai_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Model"
+          },
+          "ai_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Provider"
+          },
+          "analyzer_versions": {
+            "items": {
+              "$ref": "#/components/schemas/ToolVersionDTO"
+            },
+            "title": "Analyzer Versions",
+            "type": "array"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "scoring_policy_version": {
+            "title": "Scoring Policy Version",
+            "type": "string"
+          },
+          "source_bytes": {
+            "title": "Source Bytes",
+            "type": "integer"
+          },
+          "source_lines": {
+            "title": "Source Lines",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ai_provider",
+          "ai_model",
+          "prompt_version",
+          "scoring_policy_version",
+          "analyzer_versions",
+          "source_bytes",
+          "source_lines",
+          "duration_ms"
+        ],
+        "title": "MetadataDTO",
+        "type": "object"
+      },
+      "OutcomeStatus": {
+        "enum": [
+          "SUCCEEDED",
+          "FAILED",
+          "SKIPPED"
+        ],
+        "title": "OutcomeStatus",
+        "type": "string"
+      },
+      "Provenance": {
+        "enum": [
+          "STATIC",
+          "AI",
+          "HYBRID"
+        ],
+        "title": "Provenance",
+        "type": "string"
+      },
+      "Readiness": {
+        "properties": {
+          "components": {
+            "$ref": "#/components/schemas/ComponentsDTO"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "components"
+        ],
+        "title": "Readiness",
+        "type": "object"
+      },
+      "ResultCapabilitiesDTO": {
+        "properties": {
+          "ai_analysis": {
+            "title": "Ai Analysis",
+            "type": "boolean"
+          },
+          "improved_code": {
+            "title": "Improved Code",
+            "type": "boolean"
+          },
+          "static_analysis": {
+            "title": "Static Analysis",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "static_analysis",
+          "ai_analysis",
+          "improved_code"
+        ],
+        "title": "ResultCapabilitiesDTO",
+        "type": "object"
+      },
+      "ReviewCreateRequest": {
+        "additionalProperties": false,
+        "description": "The body of POST /api/v1/reviews. Content rules belong to the application validator.",
+        "properties": {
+          "language": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_+-]+$",
+            "title": "Language",
+            "type": "string"
+          },
+          "source_code": {
+            "title": "Source Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "language",
+          "source_code"
+        ],
+        "title": "ReviewCreateRequest",
+        "type": "object"
+      },
+      "ReviewResource": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FailureDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewResultDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/ReviewStage"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          }
+        },
+        "required": [
+          "review_id",
+          "status",
+          "stage",
+          "language",
+          "created_at",
+          "finished_at",
+          "result",
+          "failure"
+        ],
+        "title": "ReviewResource",
+        "type": "object"
+      },
+      "ReviewResultDTO": {
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/AnalysisDTO"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ResultCapabilitiesDTO"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/CoverageDTO"
+          },
+          "improved_code": {
+            "$ref": "#/components/schemas/ImprovedCodeDTO"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueDTO"
+            },
+            "maxItems": 50,
+            "title": "Issues",
+            "type": "array"
+          },
+          "issues_truncated": {
+            "title": "Issues Truncated",
+            "type": "boolean"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/MetadataDTO"
+          },
+          "score": {
+            "$ref": "#/components/schemas/ScoreDTO"
+          },
+          "severity_counts": {
+            "$ref": "#/components/schemas/SeverityCountsDTO"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SummaryDTO"
+          },
+          "total_issue_count": {
+            "title": "Total Issue Count",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/WarningDTO"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "summary",
+          "score",
+          "coverage",
+          "issues",
+          "total_issue_count",
+          "severity_counts",
+          "issues_truncated",
+          "improved_code",
+          "analysis",
+          "capabilities",
+          "warnings",
+          "metadata"
+        ],
+        "title": "ReviewResultDTO",
+        "type": "object"
+      },
+      "ReviewStage": {
+        "enum": [
+          "QUEUED",
+          "ANALYZING",
+          "GENERATING_IMPROVEMENT",
+          "FINISHED"
+        ],
+        "title": "ReviewStage",
+        "type": "string"
+      },
+      "ReviewStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "PARTIAL",
+          "FAILED"
+        ],
+        "title": "ReviewStatus",
+        "type": "string"
+      },
+      "ScoreBand": {
+        "enum": [
+          "EXCELLENT",
+          "GOOD",
+          "FAIR",
+          "POOR",
+          "VERY_POOR"
+        ],
+        "title": "ScoreBand",
+        "type": "string"
+      },
+      "ScoreCap": {
+        "description": "Members are declared in the canonical order (§13.4).",
+        "enum": [
+          "UNPARSEABLE_SOURCE",
+          "CRITICAL_ISSUE",
+          "HIGH_CORRECTNESS_OR_SECURITY"
+        ],
+        "title": "ScoreCap",
+        "type": "string"
+      },
+      "ScoreDTO": {
+        "properties": {
+          "assessed_weight": {
+            "title": "Assessed Weight",
+            "type": "integer"
+          },
+          "band": {
+            "$ref": "#/components/schemas/ScoreBand"
+          },
+          "caps_applied": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreCap"
+            },
+            "title": "Caps Applied",
+            "type": "array"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryScoreDTO"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "overall": {
+            "title": "Overall",
+            "type": "integer"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "provisional": {
+            "title": "Provisional",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "overall",
+          "band",
+          "provisional",
+          "assessed_weight",
+          "categories",
+          "caps_applied",
+          "policy_version"
+        ],
+        "title": "ScoreDTO",
+        "type": "object"
+      },
+      "Severity": {
+        "enum": [
+          "CRITICAL",
+          "HIGH",
+          "MEDIUM",
+          "LOW"
+        ],
+        "title": "Severity",
+        "type": "string"
+      },
+      "SeverityCountsDTO": {
+        "properties": {
+          "CRITICAL": {
+            "title": "Critical",
+            "type": "integer"
+          },
+          "HIGH": {
+            "title": "High",
+            "type": "integer"
+          },
+          "LOW": {
+            "title": "Low",
+            "type": "integer"
+          },
+          "MEDIUM": {
+            "title": "Medium",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "CRITICAL",
+          "HIGH",
+          "MEDIUM",
+          "LOW"
+        ],
+        "title": "SeverityCountsDTO",
+        "type": "object"
+      },
+      "SeveritySource": {
+        "enum": [
+          "STATIC",
+          "AI"
+        ],
+        "title": "SeveritySource",
+        "type": "string"
+      },
+      "SkipReason": {
+        "enum": [
+          "SYNTAX_ERROR",
+          "NOT_NEEDED",
+          "DISABLED",
+          "DEPENDENCY_FAILED",
+          "DEADLINE_EXCEEDED"
+        ],
+        "title": "SkipReason",
+        "type": "string"
+      },
+      "StageOutcomeDTO": {
+        "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SkipReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/OutcomeStatus"
+          }
+        },
+        "required": [
+          "status",
+          "error_code",
+          "skip_reason",
+          "message",
+          "duration_ms"
+        ],
+        "title": "StageOutcomeDTO",
+        "type": "object"
+      },
+      "SummaryDTO": {
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/SummarySource"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "source"
+        ],
+        "title": "SummaryDTO",
+        "type": "object"
+      },
+      "SummarySource": {
+        "enum": [
+          "AI",
+          "GENERATED"
+        ],
+        "title": "SummarySource",
+        "type": "string"
+      },
+      "ToolOutcomeDTO": {
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/StageOutcomeDTO"
+          },
+          "tool": {
+            "title": "Tool",
+            "type": "string"
+          },
+          "tool_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Version"
+          }
+        },
+        "required": [
+          "tool",
+          "tool_version",
+          "outcome"
+        ],
+        "title": "ToolOutcomeDTO",
+        "type": "object"
+      },
+      "ToolVersionDTO": {
+        "properties": {
+          "tool": {
+            "title": "Tool",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool",
+          "version"
+        ],
+        "title": "ToolVersionDTO",
+        "type": "object"
+      },
+      "WarningDTO": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "WarningDTO",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "AI Code Review Assistant",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/capabilities": {
+      "get": {
+        "description": "Languages and input limits, for client-side validation (D-31).",
+        "operationId": "capabilities_api_v1_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Capabilities"
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "description": "Liveness only: no dependency is checked.",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "description": "Readiness of the AI provider, the static tools and persistence (D-54).",
+        "operationId": "ready_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
+    "/api/v1/reviews": {
+      "post": {
+        "description": "Submit code: 202 creates a review; 200 replays the review for a known key (§6.3).",
+        "operationId": "create_review_api_v1_reviews_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{16,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResource"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create Review"
+      }
+    },
+    "/api/v1/reviews/{review_id}": {
+      "get": {
+        "description": "The current state of a review (§6.4).",
+        "operationId": "get_review_api_v1_reviews__review_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResource"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get Review"
+      }
+    }
+  }
+}
