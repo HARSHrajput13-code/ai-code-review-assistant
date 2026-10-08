@@ -1,12 +1,36 @@
-"""Provider-side rules shared by every AIReviewProvider (CIS §7.1, §7.3, §9.4).
+"""The AIReviewProvider request and result types, and the rules every provider shares.
 
-The Protocol and its request and result types are in shared/domain/interfaces.py.
+The types are defined once, in shared/domain (the Protocol in `shared` refers to them, and
+`shared` imports nothing internal, §3.1). This module re-exports the same objects as the `ai`
+layer's public API (§4), alongside the retry and timeout rules (§7.1, §7.3, §9.4).
 """
 
 from collections.abc import Awaitable, Callable
 
 from shared.domain.errors import AIResponseInvalid
-from shared.domain.interfaces import Deadline
+from shared.domain.interfaces import (
+    AIImprovementRequest,
+    AIImprovementResult,
+    AIReviewProvider,
+    AIReviewRequest,
+    Deadline,
+    ProviderDescriptor,
+    ProviderHealth,
+)
+from shared.domain.models import AIReviewResult
+
+__all__ = [
+    "RETRY_MIN_REMAINING_S",
+    "AIImprovementRequest",
+    "AIImprovementResult",
+    "AIReviewProvider",
+    "AIReviewRequest",
+    "AIReviewResult",
+    "ProviderDescriptor",
+    "ProviderHealth",
+    "attempt_timeout",
+    "with_retry",
+]
 
 RETRY_MIN_REMAINING_S = 20.0  # a retry is not started with less time left (§9.4)
 

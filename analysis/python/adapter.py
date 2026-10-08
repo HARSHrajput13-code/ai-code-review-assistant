@@ -13,11 +13,12 @@ from importlib import metadata
 
 from analysis.process import ProcessRunner, ToolCommand
 from analysis.python import bandit_tool, pylint_tool, rules
-from analysis.python.syntax import check_syntax
+from analysis.python.syntax import check_syntax, validate_generated_code
 from shared.domain.enums import Category, ErrorCode, Language, OutcomeStatus, SkipReason
 from shared.domain.errors import StaticAnalysisFailed
 from shared.domain.interfaces import Deadline
 from shared.domain.models import (
+    CodeValidation,
     FindingCandidate,
     SourceText,
     StageOutcome,
@@ -86,6 +87,9 @@ class PythonLanguageAdapter:
 
     def check_syntax(self, source: SourceText) -> SyntaxCheck:
         return check_syntax(source)
+
+    def validate_generated_code(self, original: SourceText, generated: str) -> CodeValidation:
+        return validate_generated_code(original, generated)
 
     def tool_versions(self) -> tuple[ToolVersion, ...]:
         versions = [ToolVersion(tool=rules.PARSER, version=self._parser_version)]

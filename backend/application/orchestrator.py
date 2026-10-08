@@ -126,12 +126,12 @@ def _unavailable(code: ErrorCode | None, message: str) -> ImprovedCode:
     )
 
 
-def _static_failure(
-    syntax_candidate: FindingCandidate | None, code: ErrorCode
+def _without_tools(
+    syntax_candidate: FindingCandidate | None, outcome: StageOutcome
 ) -> StaticAnalysisResult:
+    """The static result when the tools could not run: each one gets `outcome`."""
     tools = tuple(
-        ToolOutcome(tool=tool, tool_version=None, outcome=_failed(code))
-        for tool in ("pylint", "bandit")
+        ToolOutcome(tool=tool, tool_version=None, outcome=outcome) for tool in ("pylint", "bandit")
     )
     return StaticAnalysisResult(
         syntax_valid=syntax_candidate is None,
@@ -141,9 +141,13 @@ def _static_failure(
     )
 
 
-def _bounded(deadline: Deadline) -> float | None:
-    remaining = deadline.remaining()
-    return remaining if remaining > 0 else None
+def _may_start(remaining: float, threshold: float = 0.0) -> bool:
+    """A stage starts only with time left and at least its start threshold (§7.1, D-48).
+
+    The same `remaining` value then bounds the stage, so every timeout is positive: an exhausted
+    deadline is never turned into "no limit".
+    """
+    return remaining > 0 and remaining >= threshold
 
 
 class ReviewOrchestrator:
@@ -261,25 +265,30 @@ class ReviewOrchestrator:
         try:
             syntax = adapter.check_syntax(source)
             syntax_candidate = syntax.candidate
-            async with asyncio.timeout(_bounded(deadline)):
+            remaining = deadline.remaining()
+            if not _may_start(remaining):  # the tools never started (§7.2)
+                skipped = _skipped(SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT)
+                return _without_tools(syntax_candidate, skipped)
+            async with asyncio.timeout(remaining):
                 return await adapter.analyze(source, syntax, deadline)
         except TimeoutError:
-            return _static_failure(syntax_candidate, ErrorCode.REVIEW_TIMEOUT)
+            return _without_tools(syntax_candidate, _failed(ErrorCode.REVIEW_TIMEOUT))
         except Exception as error:  # isolated at the stage boundary (§7.2)
             logger.error("static analysis stage failed: %s", type(error).__name__)
-            return _static_failure(syntax_candidate, ErrorCode.STATIC_ANALYSIS_FAILURE)
+            return _without_tools(syntax_candidate, _failed(ErrorCode.STATIC_ANALYSIS_FAILURE))
 
     async def _ai(
         self, submission: ReviewSubmission, findings: tuple[Finding, ...], deadline: Deadline
     ) -> tuple[StageOutcome, AIReviewResult | None]:
-        if deadline.remaining() < self._options.ai_start_min_s:
+        remaining = deadline.remaining()
+        if not _may_start(remaining, self._options.ai_start_min_s):
             return _skipped(SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT), None
         started = self._clock.monotonic()
         request = AIReviewRequest(
             language=submission.language, source=submission.source, static_findings=findings
         )
         try:
-            async with asyncio.timeout(_bounded(deadline)):
+            async with asyncio.timeout(remaining):
                 result = await self._provider.review(request, deadline)
         except ReviewError as error:
             return _failed(error.code), None
@@ -317,13 +326,14 @@ class ReviewOrchestrator:
             return _skipped(SkipReason.DEPENDENCY_FAILED, code), _unavailable(
                 code, FAILURE_MESSAGES[code]
             )
-        if deadline.remaining() < self._options.improvement_start_min_s:
+        remaining = deadline.remaining()
+        if not _may_start(remaining, self._options.improvement_start_min_s):
             code = ErrorCode.REVIEW_TIMEOUT
             return _skipped(SkipReason.DEADLINE_EXCEEDED, code), _unavailable(
                 code, FAILURE_MESSAGES[code]
             )
         try:
-            async with asyncio.timeout(_bounded(deadline)):
+            async with asyncio.timeout(remaining):
                 return await self._improver.improve(
                     submission, issues[:PROMPT_MAX_IMPROVEMENT_ISSUES], deadline
                 )
