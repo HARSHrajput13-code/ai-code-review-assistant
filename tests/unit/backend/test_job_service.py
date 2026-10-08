@@ -11,32 +11,16 @@ from ai.fake import FakeAIReviewProvider
 from analysis.registry import LanguageRegistry
 from backend.application.job_service import ReviewJobService, fingerprint
 from backend.application.job_store import InMemoryReviewJobStore
-from backend.application.orchestrator import OrchestratorOptions, ReviewOrchestrator, ReviewOutcome
+from backend.application.orchestrator import OrchestratorOptions, ReviewOrchestrator
 from backend.application.validation import SubmissionValidator
 from shared.domain.enums import ErrorCode, ReviewStage, ReviewStatus
 from shared.domain.errors import IdempotencyConflict, RequestRejected
-from shared.domain.models import ReviewFailure
 from shared.domain.review import CodeReview
-from tests.unit.backend.pipeline_doubles import SOURCE, StubAdapter
+from tests.unit.backend.pipeline_doubles import SOURCE, GatedRunner, StubAdapter
 from tests.unit.builders import FakeClock
 
 KEY = "key-0123456789abcdef"
 CODE = SOURCE.text
-
-
-class GatedRunner:
-    """Holds every review until released; then fails it (no result needed)."""
-
-    def __init__(self) -> None:
-        self.gate = asyncio.Event()
-        self.runs = 0
-
-    async def run(self, submission: Any, adapter: Any, deadline: Any, report: Any) -> ReviewOutcome:
-        self.runs += 1
-        await report(ReviewStage.GENERATING_IMPROVEMENT)
-        await self.gate.wait()
-        failure = ReviewFailure(code=ErrorCode.INTERNAL_ERROR, message="stub")
-        return ReviewOutcome(ReviewStatus.FAILED, failure=failure)
 
 
 def service(

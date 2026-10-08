@@ -202,3 +202,18 @@ def test_installed_versions_are_read_from_package_metadata() -> None:
         "pylint": "4.1.2",
         "bandit": "1.9.4",
     }.items()
+
+
+def test_health_reports_the_resolved_versions() -> None:
+    found = adapter(FakeProcessRunner({})).health()
+    assert found.available
+    assert found.detail.endswith("pylint 4.1.2, bandit 1.9.4")
+    assert found.detail.startswith("python-parser ")
+
+
+def test_health_reports_a_missing_or_disabled_tool() -> None:
+    missing = adapter(FakeProcessRunner({}), {"pylint": "4.1.2", "bandit": None}).health()
+    assert (missing.available, missing.detail) == (False, "bandit not installed")
+    versions = {"pylint": None, "bandit": "1.9.4"}
+    disabled = adapter(FakeProcessRunner({}), versions, pylint_enabled=False).health()
+    assert disabled.available and "pylint disabled" in disabled.detail

@@ -122,6 +122,11 @@ class Settings(BaseSettings):
         return self.review_max_concurrent + self.review_max_queued
 
 
+def parent_environment() -> dict[str, str]:
+    """The process environment for SafeProcessRunner, which keeps only its allow-list (§8.6)."""
+    return dict(os.environ)
+
+
 def _env_file_defines(env_file: Path, key: str) -> bool:
     if not env_file.is_file():
         return False

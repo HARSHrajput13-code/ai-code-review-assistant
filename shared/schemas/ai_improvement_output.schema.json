@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "improved_code": {
+      "maxLength": 200000,
+      "minLength": 1,
+      "title": "Improved Code",
+      "type": "string"
+    },
+    "notes": {
+      "items": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Notes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "improved_code",
+    "notes"
+  ],
+  "title": "AIImprovementOutput",
+  "type": "object"
+}

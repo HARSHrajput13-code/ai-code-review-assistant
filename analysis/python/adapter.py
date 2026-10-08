@@ -16,7 +16,7 @@ from analysis.python import bandit_tool, pylint_tool, rules
 from analysis.python.syntax import check_syntax, validate_generated_code
 from shared.domain.enums import Category, ErrorCode, Language, OutcomeStatus, SkipReason
 from shared.domain.errors import StaticAnalysisFailed
-from shared.domain.interfaces import Deadline
+from shared.domain.interfaces import Deadline, ProviderHealth
 from shared.domain.models import (
     CodeValidation,
     FindingCandidate,
@@ -90,6 +90,22 @@ class PythonLanguageAdapter:
 
     def validate_generated_code(self, original: SourceText, generated: str) -> CodeValidation:
         return validate_generated_code(original, generated)
+
+    def health(self) -> ProviderHealth:
+        """Readiness of the static tools from the versions resolved at startup (§6.5)."""
+        enabled = {
+            rules.PYLINT: self._options.pylint_enabled,
+            rules.BANDIT: self._options.bandit_enabled,
+        }
+        missing = [t for t, on in enabled.items() if on and not self._versions.get(t)]
+        if missing:
+            return ProviderHealth(available=False, detail=f"{', '.join(missing)} not installed")
+        parts = [f"{rules.PARSER} {self._parser_version}"]
+        parts += [
+            f"{tool} {self._versions[tool]}" if on else f"{tool} disabled"
+            for tool, on in enabled.items()
+        ]
+        return ProviderHealth(available=True, detail=", ".join(parts))
 
     def tool_versions(self) -> tuple[ToolVersion, ...]:
         versions = [ToolVersion(tool=rules.PARSER, version=self._parser_version)]
