@@ -2866,7 +2866,7 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | **M3 Complete features (UI)** | Improved-code UI; partial, coverage and failure UI; location linking; banners | Every BS §39 acceptance criterion is demonstrable with the frozen model. |
 | **M4 Hardening** | Logging privacy tests; SQLite repository (implemented, disabled by default, D-86); E2E including the idempotent retry; README, including the V1 limitations, the model licence, and "Performance on the reference machine" (D-89) | All required tests pass. The evaluation reports and records are in `docs/evaluation/`. |
 
-**Implementation status** (recorded 2026-10-08; this is the authoritative status record):
+**Implementation status** (recorded 2026-10-08, updated 2026-10-09; this is the authoritative status record):
 
 | Item | Kind | Status |
 |---|---|---|
@@ -2877,13 +2877,15 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | **PR-01 — M0 Bootstrap** (§22.5) | First production M0 implementation task | **COMPLETED.** Merged as PR #2 on 2026-10-07 (merge commit `30ed3b8`). Its branch was deleted locally and remotely. Execution record in §22.5. |
 | M0 production implementation | Milestone | **COMPLETED** (PR-01). The M0 "done when" passed. M0 delivers the engineering foundation only; it contains no review functionality. The Q7 verification remains a separate, earlier experiment. |
 | **PR-02 — Static-analysis core** (§22.5) | First M1 implementation task | **COMPLETED.** Merged as PR #4 on 2026-10-07 (merge commit `bef8644`). Its branch was deleted locally and remotely. Execution record in §22.5. |
-| M1 vertical slice (PR-02 to PR-05) | Milestone | **IN PROGRESS.** PR-02 is completed; M1 closes only with PR-05 (§22.5). |
-| **PR-03 — Review domain and pipeline** | M1 implementation task | **NOT STARTED (next).** |
+| **PR-03 — Review domain and pipeline** (§22.5) | M1 implementation task | **COMPLETED.** Merged as PR #6 on 2026-10-08 (merge commit `ac387cd`), followed by the corrective PR #7 (merge commit `377a9c1`). Both branches were deleted locally and remotely. Execution record in §22.5. |
+| M1 vertical slice (PR-02 to PR-05) | Milestone | **IN PROGRESS.** PR-02 and PR-03 are completed. PR-04 (API and OpenAPI) and PR-05 (minimal frontend) remain; M1 closes only with PR-05 (§22.5). |
+| **PR-04 — API and OpenAPI contract** | M1 implementation task | **NOT STARTED (next).** |
+| PR-05 — Minimal frontend vertical slice | M1 implementation task | **NOT STARTED.** |
 | M2, M3, M4 (PR-06 to PR-10) | Milestones | **NOT STARTED.** No model has been selected (M2). |
 
 This table records the **current state** only.
 - **Normative workflow:** §22.3–22.6 (D-96) is what every implementation PR must follow. It is unchanged.
-- **Execution history:** what actually happened during PR-00, PR-01 and PR-02 is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
+- **Execution history:** what actually happened during PR-00, PR-01, PR-02 and PR-03 (including PR-03's corrective PR #7) is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
 
 ### 22.2 Repository state and the Q7 experiment (historical note)
 
@@ -2957,14 +2959,14 @@ CI pattern: ^(feat|fix|docs|test|build|ci|refactor|perf|style|chore)(\([a-z0-9-]
 | PR-00 | `chore/repository-foundation` | Foundation | GitHub workflow, CI, conventions | Repository workflow operational | **COMPLETED** (PR #1, merge `b72b3eb`) |
 | PR-01 | `feat/m0-bootstrap` | M0 | Production project bootstrap | M0 "done when" (§22.1) passes | **COMPLETED** (PR #2, merge `30ed3b8`) |
 | PR-02 | `feat/m1-static-analysis` | M1 | Static-analysis core | Static-analysis integration passes | **COMPLETED** (PR #4, merge `bef8644`) |
-| PR-03 | `feat/m1-review-pipeline` | M1 | Review domain and pipeline | Deterministic review passes | **NOT STARTED** (next) |
-| PR-04 | `feat/m1-api-contract` | M1 | Backend API and OpenAPI | API contract passes | Not started |
-| PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** | Not started |
-| PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes | Not started |
-| PR-07 | `feat/m2-improvement` | M2 | Improvement backend (§22.1 places it in M2; gates C3/C4 need it) | Improvement tests pass | Not started |
-| PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** | Not started |
-| PR-09 | `feat/m3-ui-completion` | M3 | Complete UI behaviour | BS §39 acceptance demonstrable; **closes M3** | Not started |
-| PR-10 | `feat/m4-hardening` | M4 | Hardening and V1 freeze documentation | M4 "done when" passes; **closes M4** | Not started |
+| PR-03 | `feat/m1-review-pipeline` | M1 | Review domain and pipeline | Deterministic review passes | **COMPLETED** (PR #6, merge `ac387cd`; corrective PR #7, merge `377a9c1`) |
+| PR-04 | `feat/m1-api-contract` | M1 | Backend API and OpenAPI | API contract passes | **NOT STARTED** (next) |
+| PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** | NOT STARTED |
+| PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes | NOT STARTED |
+| PR-07 | `feat/m2-improvement` | M2 | Improvement backend (§22.1 places it in M2; gates C3/C4 need it) | Improvement tests pass | NOT STARTED |
+| PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** | NOT STARTED |
+| PR-09 | `feat/m3-ui-completion` | M3 | Complete UI behaviour | BS §39 acceptance demonstrable; **closes M3** | NOT STARTED |
+| PR-10 | `feat/m4-hardening` | M4 | Hardening and V1 freeze documentation | M4 "done when" passes; **closes M4** | NOT STARTED |
 
 The Status column is the execution record and mirrors the §22.1 status table. The other columns are the original plan. PRs are merged in this order. Each PR's dependencies are all the PRs before it. The table decomposes the §22.1 milestone scope for delivery and does not change it.
 
@@ -3149,6 +3151,72 @@ The Status column is the execution record and mirrors the §22.1 status table. T
   - the orchestrator; deadlines; the job service; idempotency.
 - **Suggested commits:** `feat(review): add AI response normalization`, `feat(review): add issue corroboration and deduplication`, `feat(review): add coverage and scoring`, `feat(application): add review orchestration`, `feat(application): add review job service`, `test(review): add deterministic pipeline tests`.
 - **Acceptance:** real static analysis plus the fake AI produce the required deterministic result; V1–V12 and the §13.8 properties pass.
+- **Execution record: COMPLETED** (the original implementation, PR #6, followed by one corrective PR, #7).
+  - **Repository:** `HARSHrajput13-code/ai-code-review-assistant`.
+  - **Original implementation.**
+    - **Pull request:** #6, `feat(m1): implement review domain and pipeline`, from `feat/m1-review-pipeline` into `main`. **Merged** on 2026-10-08 at 19:33:24 UTC.
+    - **Merge commit:** `ac387cda61ae6f9d8a1263f136e454d2bd527757`. Its parents are `442fc31` and the PR head `21cc1642344322ffa2b5e143cd3f25434eb48339`.
+    - **Commits:**
+      - `445b6d4` `feat(domain): complete the review domain model`
+      - `c93e898` `feat(config): add validated settings and context budget`
+      - `437be8c` `feat(ai): add response processing and fake provider`
+      - `7092efa` `feat(review): add coverage and scoring`
+      - `b9385e1` `feat(review): add issue corroboration and deduplication`
+      - `36d76ad` `feat(application): add review orchestration`
+      - `fa6e0a2` `feat(application): add review job service`
+      - `21cc164` `test(review): add deterministic pipeline tests`
+    - **CI on the head `21cc164`:** `commits`, `backend` and `frontend` all **PASS** (runs 37765448498 and 37765600403). `backend` ran on Windows with Python 3.14.8.
+    - **Tests:** **695 passed**, 0 failed, 0 skipped. The 318 tests on `main` before PR-03 all still pass, and PR-03 added 377. That includes new parametrized cases of an existing architecture test. (The PR #6 description split this as 333 plus 362; the 695 total is correct.)
+      - Coverage: **97 %** overall. Ruff check and format clean; mypy (strict) clean on 90 files.
+      - V1–V12 pass with exact values, and the §13.8 properties pass. Real Pylint and Bandit with the fake AI give a complete, deterministic review (the acceptance).
+    - **What PR-03 implemented:**
+      - the remaining immutable domain (§5): the result models, the `CodeReview` aggregate with validated transitions (§5.7), the §17.2 exception hierarchy, and the `AIReviewProvider` and `ReviewJobStore` interfaces;
+      - `backend/config.py` (§16), the only environment reader, with the §9.7 budget computation (`ai/budget.py`) and startup check, tested against fixture system-prompt sizes;
+      - the AI output schemas (§11), `AIResponseProcessor` with post-sanitization re-validation (D-85), location matching (§11.3), the shared retry and attempt-timeout rules (§9.4), and `FakeAIReviewProvider` (§9.6);
+      - AI numbering, AI–AI deduplication, corroboration, claims and confidence, issue building, grouping and sorting (§12); coverage and `ScoringPolicyV1` (§13); the generated summary (§12.8);
+      - `SubmissionValidator`, the clock and monotonic `Deadline`, `ReviewOrchestrator`, `InMemoryReviewJobStore` and `ReviewJobService` with idempotency (§6.3, §7).
+  - **Corrective PR.** A conformance audit after the merge found that the original implementation did not yet fully meet the existing §5.8 contracts and D-48, and lacked some required tests.
+    - **Pull request:** #7, `fix(review): correct post-pr03 contract and deadline issues`, from `fix/pr03-review-contracts` into `main`. **Merged** on 2026-10-08 at 20:58:10 UTC.
+    - **Merge commit:** `377a9c1e5a5c1c833ebffc0887c9ccea23477719`. Its parents are `ac387cd` and the PR head `9ff6be64272f0d9171edae92c54ecc866ac1b76a`.
+    - **Commits:**
+      - `7102ba1` `fix(domain): restore review interface contracts`
+      - `72749a7` `fix(application): enforce expired review deadlines`
+      - `d6019cf` `test(application): cover improvement table and idempotency races`
+      - `9ff6be6` `test(security): verify source data never reaches logs`
+    - **Implementation corrections** (conformance to the existing contracts; no new product functionality):
+      1. **`LanguageAdapter` (§5.8).** The Protocol now has every member: `language`, `display_name`, `covered_categories(tool)`, `check_syntax(source)`, `analyze(source, syntax, deadline)`, `validate_generated_code(original, generated) -> CodeValidation`, and `tool_versions()`. `CodeValidation` is a domain model. `PythonLanguageAdapter.validate_generated_code` applies the §8.2 bounded parse and the §14.3 step 5–6 public-interface rules (D-60). Generated code is parsed for inspection only, and never executed, imported or compiled.
+      2. **`ReviewRecordRepository` (§5.8, §19.2).** The Protocol (`async save(record) -> None`, best effort; `check_health() -> bool`) and the metadata-only `ReviewRecord` are in `shared`. **No persistence is implemented**: the null and SQLite implementations remain PR-10 (M4), in `backend/persistence`.
+      3. **Provider types (§3.1, §4).** The canonical `AIReviewRequest`, `AIImprovementRequest`, `AIImprovementResult`, `AIReviewResult`, `ProviderDescriptor`, `ProviderHealth` and `AIReviewProvider` stay in `shared/domain`. `ai.provider` exposes the same objects by re-export. Nothing is duplicated, and there is no `shared` → `ai` dependency.
+      4. **Expired deadline (D-48, §7.1, §7.2).** A remaining time of zero or less had been turned into "no timeout". Each stage now starts only when time remains and its start threshold is met, and it is bounded by that same positive value. No stage ever gets an unbounded execution window. A stage that cannot start is `SKIPPED(DEADLINE_EXCEEDED)` with `REVIEW_TIMEOUT`.
+    - **Tests added:**
+      - every §14.5 decision-table row and the improvement failure paths, using test doubles only;
+      - idempotency under genuine contention: two concurrent POSTs both miss the pre-check, and the lock-protected re-check decides (§6.3);
+      - source and log privacy (D-55): sentinels in the source, a Pylint message, the AI text, the improved code, exception messages and the `Idempotency-Key` never appear in any log record, nor on stdout or stderr;
+      - the §5.8 contract, layering and generated-code validation tests;
+      - zero and negative remaining-deadline tests on `FakeClock`.
+    - **CI on the head `9ff6be6`:** `commits`, `backend` and `frontend` all **PASS** (runs 37842666708 and 37842835964).
+    - **Final verification**, re-run on `main` at `377a9c1`:
+      - **785 passed**, 0 failed, 0 skipped (90 more than after PR #6);
+      - coverage **98 %** overall;
+      - Ruff check clean; Ruff format clean (99 files); mypy (strict) clean on 93 files;
+      - architecture tests 127 passed: layering, forbidden calls, the only environment reader, domain immutability and the §5.8 contracts.
+    - The CIS, BS and TDS were not changed by PR #7, and no decision ID was added.
+  - **Improvement boundary.**
+    - PR-03 implemented the orchestrator's §14.5 decision table and the improvement status handling, and (through PR #7) the adapter's generated-code validation contract.
+    - PR-03 did **not** implement the improvement-generation operation, which remains PR-07, together with §14.3 steps 1–4.
+    - Until PR-07, no production improver exists. The production improvement path reports `SKIPPED(DISABLED)` and never returns generated code.
+    - The `FakeImprover` used in tests is a test double, not a production component.
+  - **Left to later PRs, as planned:**
+    - wiring the startup budget check to the real prompt assets, the request-time budget check before every provider call (§9.3 step 2), the prompt renderer, the rendered-prompt call recorder, and the `AI_PROMPT_VERSION` MANIFEST checks (PR-06);
+    - composition, structured JSON logging and the API (PR-04);
+    - persistence (PR-10).
+  - **Minor observations** (no contract change):
+    - `ai/budget.py` names the integer form of `IMPROVE_OUTPUT_FACTOR` (1.15) as `IMPROVE_OUTPUT_FACTOR_PERCENT = 115`. The value and arithmetic follow §9.7.
+    - §7.2 and §18 log unexpected exceptions with a traceback but no source or local variables. Until the structured logging of PR-04, the code logs the exception type only, with no traceback, which exposes less.
+    - Shutdown cancels running reviews without moving them to `FAILED`; their in-memory state is discarded with the process (§0.4).
+  - **Scope boundary:** neither PR implemented any API, OpenAPI, frontend, Ollama, prompt-asset, model-selection, evaluation, improvement-generation, SQLite or E2E work.
+  - **Attribution:** none of the twelve commits, nor either merge commit, carries a Claude `Co-Authored-By` footer.
+  - **Branches:** `feat/m1-review-pipeline` and `fix/pr03-review-contracts` were deleted locally and on GitHub after each merge was verified.
 
 **PR-04: API and OpenAPI contract.**
 - **Scope:** the FastAPI application and composition; the review, status, capabilities and health endpoints; DTOs; error mapping; middleware; contract export (OpenAPI and AI schema snapshots, §6.9, §11.4).
@@ -3571,9 +3639,9 @@ This audit was performed afresh on the complete document, after the final correc
    - **Status consistency.**
      - In the §22.1 status table, PR-00, PR-01 and PR-02 each appear once, as COMPLETED.
      - M0 is COMPLETED. M1 is IN PROGRESS: it closes only with PR-05.
-     - PR-03 is NOT STARTED (next), and M2–M4 are NOT STARTED.
+     - At the time of this check, PR-03 was NOT STARTED (next) and M2–M4 were NOT STARTED. Check 11 supersedes this for PR-03.
      - The §22.5 Status column agrees with the table.
-     - No section claims that PR-02 implemented AI or review-pipeline functionality, that M1 is closed, or that PR-03 has started. No model is selected.
+     - At the time of this check, no section claimed that PR-02 implemented AI or review-pipeline functionality, that M1 is closed, or that PR-03 had started. No model is selected.
      - Q7 is still classified only as experimental verification.
    - **Audit wording corrected.** The §27.2 "Decision IDs" row said "D-01 to D-95 sequential", which predates D-96. It now covers D-01 to D-96.
    - **Mechanical checks repeated** on the complete document:
@@ -3582,6 +3650,26 @@ This audit was performed afresh on the complete document, after the final correc
      - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
      - the frozen constants are unchanged.
    - **Byte-identical**, compared with the text before this pass: everything outside §22.1, §22.5 and §27, including the decision register (D-96 itself) and every constant.
+
+11. **PR-03 status record, including the corrective PR #7** (2026-10-09; status recording only; no design change, no new decision ID, version unchanged at 0.3):
+   - **What changed:**
+     - the §22.1 status table and its execution-history note;
+     - the §22.5 Status column and the PR-03 execution record (the original PR-03 scope, suggested commits and acceptance are unchanged);
+     - this §27. Check 10, the §27.2 PR-02 row and criterion 15 are marked as historical. §27.6 is updated, including one stale current-state sentence ("no review functionality exists yet"), which predated PR-02 and PR-03.
+   - **Status consistency.**
+     - In the §22.1 status table, PR-00, PR-01, PR-02 and PR-03 each appear once, as COMPLETED. M0 is COMPLETED.
+     - M1 is IN PROGRESS: PR-04 and PR-05 remain, and it closes only with PR-05.
+     - PR-04 is NOT STARTED (next). PR-05 to PR-10 are NOT STARTED, as are M2–M4.
+     - The §22.5 Status column agrees with the table.
+     - No section claims that M1 is closed, that PR-04 has started, or that a model is selected.
+     - Q7 is still classified only as experimental verification.
+   - **Execution history kept distinct.** The PR-03 execution record separates the original implementation (PR #6) from the corrective PR #7. It states that PR #7 brought the code into conformance with existing contracts (§5.8, D-48) and added required tests, without new product functionality. It also states the improvement boundary: no improvement-generation operation exists before PR-07.
+   - **Mechanical checks repeated** on the complete document:
+     - 155 headings and 117 distinct `§` references (two more than check 10, because the PR-03 record cites §5.8 and §12), 0 unresolved;
+     - the §23 register has 96 rows, D-01 to D-96, with no gaps, no duplicates and no unregistered ID; D-96 is registered exactly once;
+     - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
+     - the frozen constants are unchanged.
+   - **Byte-identical**, compared with the text before this pass: everything outside §22.1, §22.5 and §27, including the decision register and every constant.
 
 ### 27.2 Results by domain
 
@@ -3599,7 +3687,8 @@ This audit was performed afresh on the complete document, after the final correc
 | **No implementation** | repository state | In this D-96 pass only this document changed. The repository holds the three specifications only. No code, dependency, branch, commit, PR, BS or TDS change. |
 | **Implementation status (PR-00 record)** | §22.1 status table, §22.5 Status column and PR-00 execution record, header | Consistent. This supersedes the repository-state statement of the D-96 pass in the row above. `main` now holds the baseline and the PR-00 foundation files (merge `b72b3eb`). PR-00 is COMPLETED. PR-01 and M0 to M4 were then NOT STARTED, and no application code, dependency file or Q7 code existed. The row below supersedes this. |
 | **Implementation status (PR-01 record)** | §22.1 status table, §22.5 Status column and PR-01 execution record | Consistent. `main` now also holds the M0 foundation (merge `30ed3b8`). PR-00 and PR-01 are COMPLETED, and M0 is COMPLETED. PR-02 and M1 to M4 were then NOT STARTED, and no review functionality, AI integration, model selection or Q7 code existed. The row below supersedes this. |
-| **Implementation status (PR-02 record)** | §22.1 status table, §22.5 Status column and PR-02 execution record | Consistent. `main` now also holds the static-analysis core (merge `bef8644`). PR-00, PR-01 and PR-02 are COMPLETED, and M0 is COMPLETED. M1 is IN PROGRESS, PR-03 is NOT STARTED (next), and M2–M4 are NOT STARTED. No AI, Ollama, review-pipeline, API, scoring, improvement, evaluation or model-selection work exists. |
+| **Implementation status (PR-02 record)** | §22.1 status table, §22.5 Status column and PR-02 execution record | Consistent. `main` now also holds the static-analysis core (merge `bef8644`). PR-00, PR-01 and PR-02 are COMPLETED, and M0 is COMPLETED. M1 is IN PROGRESS, PR-03 was then NOT STARTED (next), and M2–M4 were NOT STARTED. No AI, Ollama, review-pipeline, API, scoring, improvement, evaluation or model-selection work then existed. The row below supersedes this. |
+| **Implementation status (PR-03 record)** | §22.1 status table, §22.5 Status column and PR-03 execution record (PR #6 and the corrective PR #7) | Consistent. `main` now also holds the review domain and pipeline (merge `ac387cd`) and its corrections (merge `377a9c1`). PR-00 to PR-03 are COMPLETED, and M0 is COMPLETED. M1 is IN PROGRESS (PR-04 and PR-05 remain), PR-04 is NOT STARTED (next), and PR-05 to PR-10 and M2–M4 are NOT STARTED. No API, frontend, Ollama, prompt-asset, improvement-generation, evaluation, model-selection or SQLite work exists. |
 
 ### 27.3 Consistency with the parent specifications
 
@@ -3624,7 +3713,8 @@ This audit was performed afresh on the complete document, after the final correc
 | 12 | No section claims production M0 to M4 is implemented; the Q7 experiment is not production code | Met (§22.1, §22.2, §27.6) |
 | 13 | PR-00's completion is recorded with verifiable evidence (PR, merge commit, CI run, protection state); PR-01 and M0 were then explicitly NOT STARTED | Met (§22.1, §22.5) |
 | 14 | PR-01's completion is recorded with verifiable evidence (PR, merge commit, CI results, environment record, M0 acceptance); M0 is COMPLETED; PR-02 and M1–M4 were then explicitly NOT STARTED; no model is selected | Met (§22.1, §22.5) |
-| 15 | PR-02's completion is recorded with verifiable evidence (PR, merge commit, CI, tests, catalogue, failure-path, determinism and boundary verification); M1 is IN PROGRESS, not closed; PR-03 is NOT STARTED (next); M2–M4 remain NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 15 | PR-02's completion is recorded with verifiable evidence (PR, merge commit, CI, tests, catalogue, failure-path, determinism and boundary verification); M1 is IN PROGRESS, not closed; PR-03 was then NOT STARTED (next); M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 16 | PR-03's completion is recorded with verifiable evidence (PRs #6 and #7, merge commits, CI, tests, contract corrections), with the original implementation and the corrective PR kept distinct and the improvement boundary stated; M1 is IN PROGRESS, not closed; PR-04 is NOT STARTED (next); PR-05 to PR-10 and M2–M4 remain NOT STARTED; no model is selected | Met (§22.1, §22.5) |
 
 ### 27.5 Remaining empirical questions (§24.B)
 
@@ -3645,22 +3735,23 @@ These are settled only by the defined M0 and M2 experiments on the reference har
 
 CIS v0.3, including the D-95 prompt-lifecycle clarification, is consistent with the Behavioural Specification and the Technical Design Specification. Every cross-reference, decision ID, version string, candidate reference and prompt-lifecycle statement was verified as described in §27.1. Neither parent document was modified.
 
-CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0) and PR-02 (the M1 static-analysis core) are completed; see "Current status" below. The Ollama version must be recorded before PR-06.
+CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0), PR-02 (the M1 static-analysis core) and PR-03 (the M1 review domain and pipeline, with its corrective PR #7) are completed; see "Current status" below. The Ollama version must be recorded before PR-06.
 
 The remaining model-specific and prompt-specific outcomes are controlled empirical results to be obtained through the explicitly defined M0/M2 evaluation process.
 
-**Current status** (2026-10-08; the authoritative record is §22.1):
+**Current status** (2026-10-09; the authoritative record is §22.1):
 
 - **Normative workflow:** every implementation PR follows §22.3–22.6 (D-96), which is unchanged.
 - **Execution history:**
   - The approved specifications were committed as the baseline (`3f40ac5`).
   - The repository workflow was then established through PR-00. Its two recorded deviations, protection timing and attribution cleanup, are historical only (§22.5).
-  - The production M0 was then implemented through PR-01, and the M1 static-analysis core through PR-02 (§22.5).
+  - The production M0 was then implemented through PR-01, the M1 static-analysis core through PR-02, and the M1 review domain and pipeline through PR-03. PR-03's corrective PR #7 brought it into conformance with the existing §5.8 contracts and D-48, and added required tests (§22.5).
 - **Current state:**
   - `main` is protected (§22.3). `commits`, `backend` and `frontend` are required checks. The repository is public.
   - **PR-00 is COMPLETED** and merged (PR #1, merge commit `b72b3eb`, `commits` CI PASS). Its branch was deleted locally and remotely.
   - **PR-01 is COMPLETED** and merged (PR #2, merge commit `30ed3b8`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely.
-  - **M0 production implementation is COMPLETED.** It is the engineering foundation only; no review functionality exists yet.
+  - **M0 production implementation is COMPLETED.** M0 itself is the engineering foundation only; review functionality was added in M1 by PR-02 and PR-03.
   - **PR-02 (M1 static-analysis core) is COMPLETED** and merged (PR #4, merge commit `bef8644`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely.
-  - **M1 is IN PROGRESS.** It closes only with PR-05.
-  - **PR-03 (review domain and pipeline) is NOT STARTED (next).** M2–M4 are NOT STARTED, and no model has been selected.
+  - **PR-03 (M1 review domain and pipeline) is COMPLETED** and merged (PR #6, merge commit `ac387cd`), with its corrective PR #7 (merge commit `377a9c1`); `commits`, `backend` and `frontend` CI PASS on both. Both branches were deleted locally and remotely. No improvement-generation operation exists yet (PR-07).
+  - **M1 is IN PROGRESS.** PR-04 (API and OpenAPI) and PR-05 (minimal frontend) remain; it closes only with PR-05.
+  - **PR-04 (API and OpenAPI contract) is NOT STARTED (next).** PR-05 to PR-10 and M2–M4 are NOT STARTED, and no model has been selected.
