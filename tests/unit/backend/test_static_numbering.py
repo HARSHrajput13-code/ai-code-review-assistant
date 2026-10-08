@@ -5,10 +5,11 @@ from typing import Any
 
 import pytest
 
-from backend.review.normalization import ELLIPSIS, normalize, strip_control, truncate
+from backend.review.normalization import ELLIPSIS, normalize, truncate
 from backend.review.numbering import number_static
 from shared.domain.enums import Category, Confidence, LocationStatus, Provenance, Severity
 from shared.domain.models import TEXT_LIMITS, FindingCandidate, Location
+from shared.domain.text import strip_control
 
 
 def static(

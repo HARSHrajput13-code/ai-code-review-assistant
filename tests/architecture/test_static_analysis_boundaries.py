@@ -6,7 +6,7 @@ import typing
 import pytest
 from pydantic import BaseModel
 
-from shared.domain import models
+from shared.domain import interfaces, models, review
 from tests.architecture.modules import Module, production_modules
 from tests.architecture.test_import_layering import imports, synthetic, under
 
@@ -58,8 +58,9 @@ def collection_origins(annotation: object) -> set[object]:
 
 DOMAIN_MODELS = [
     model
-    for _, model in inspect.getmembers(models, inspect.isclass)
-    if issubclass(model, BaseModel) and model.__module__ == models.__name__
+    for module in (models, review, interfaces)
+    for _, model in inspect.getmembers(module, inspect.isclass)
+    if issubclass(model, BaseModel) and model.__module__ == module.__name__
 ]
 
 
@@ -72,7 +73,7 @@ def test_domain_models_hold_no_mutable_collections(model: type[BaseModel]) -> No
 
 
 def test_domain_models_are_frozen_and_closed() -> None:
-    assert len(DOMAIN_MODELS) >= 9
+    assert len(DOMAIN_MODELS) >= 30
     for model in DOMAIN_MODELS:
         assert model.model_config.get("frozen") is True, model.__name__
         assert model.model_config.get("extra") == "forbid", model.__name__
