@@ -66,6 +66,8 @@ def synthetic(name: str, source: str, is_package: bool = False) -> Module:
         ("shared.domain.models", "import fastapi"),
         ("shared.domain.models", "import backend.config"),
         ("shared.domain.models", "from analysis import registry"),
+        ("shared.domain.interfaces", "from ai.provider import AIReviewRequest"),
+        ("shared.domain.interfaces", "from backend.persistence import repository"),
         ("analysis.python.adapter", "import ai.schemas"),
         ("analysis.python.adapter", "from backend.config import Settings"),
         ("ai.validation", "from analysis.registry import LanguageRegistry"),
@@ -99,6 +101,11 @@ def test_forbidden_import_is_detected(name: str, source: str) -> None:
         ("backend.application.orchestrator", "from backend.review import scoring"),
         ("backend.review.scoring", "from shared.domain import Category"),
         ("backend.composition", "from ai.ollama import provider\nfrom analysis import registry"),
+        (
+            "backend.persistence.sqlite",
+            "from shared.domain.interfaces import ReviewRecordRepository",
+        ),
+        ("ai.provider", "from shared.domain.interfaces import AIReviewRequest"),
         ("backend.main", "from backend.composition import build\nfrom backend.api import router"),
     ],
 )

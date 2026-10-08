@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from ai.fake import FakeAIReviewProvider
 from analysis.python import rules
-from analysis.python.syntax import check_syntax
+from analysis.python.syntax import check_syntax, validate_generated_code
 from shared.domain.enums import (
     Category,
     ErrorCode,
@@ -15,6 +15,7 @@ from shared.domain.enums import (
 )
 from shared.domain.interfaces import AIImprovementRequest, Deadline
 from shared.domain.models import (
+    CodeValidation,
     FindingCandidate,
     ImprovedCode,
     Issue,
@@ -50,7 +51,7 @@ DEFAULT_CANDIDATES = (
 
 @dataclass
 class StubAdapter:
-    """A LanguageAdapter whose static analysis is scripted; the syntax check is real."""
+    """A LanguageAdapter whose static analysis is scripted; the parse-based checks are real."""
 
     pylint: StageOutcome = OK
     bandit: StageOutcome = OK
@@ -83,6 +84,9 @@ class StubAdapter:
         return StaticAnalysisResult(
             syntax_valid=syntax.valid, tools=tools, candidates=syntax_found + kept, diagnostics=()
         )
+
+    def validate_generated_code(self, original: SourceText, generated: str) -> CodeValidation:
+        return validate_generated_code(original, generated)
 
     def tool_versions(self) -> tuple[ToolVersion, ...]:
         return (ToolVersion(tool="pylint", version="4.1.2"),)

@@ -1,9 +1,8 @@
 """Interfaces implemented outside `shared` (CIS §5.8), and the values that cross them.
 
-The AI request and result types live here because the `AIReviewProvider` Protocol refers to them
-and `shared` imports nothing internal (§3.1). `LanguageAdapter.validate_generated_code` is added
-with the improvement validation (§14.3, PR-07). `ReviewRecordRepository` is added with persistence
-(§19.2, PR-10).
+The AI request and result types are defined here because the `AIReviewProvider` Protocol refers
+to them and `shared` imports nothing internal (§3.1); `ai.provider` re-exports them (§4).
+`ReviewRecordRepository` is implemented in `backend/persistence` (§19.2).
 """
 
 from datetime import datetime
@@ -15,9 +14,11 @@ from pydantic import Field
 from shared.domain.enums import Category, Language
 from shared.domain.models import (
     AIReviewResult,
+    CodeValidation,
     DomainModel,
     Finding,
     Issue,
+    ReviewRecord,
     ReviewSubmission,
     SourceText,
     StaticAnalysisResult,
@@ -47,6 +48,10 @@ class LanguageAdapter(Protocol):
     async def analyze(
         self, source: SourceText, syntax: SyntaxCheck, deadline: Deadline
     ) -> StaticAnalysisResult: ...
+
+    def validate_generated_code(self, original: SourceText, generated: str) -> CodeValidation:
+        """Structural checks on generated code (§14.3 steps 5-6); it is never executed."""
+        ...
 
     def tool_versions(self) -> tuple[ToolVersion, ...]: ...
 
@@ -91,6 +96,14 @@ class AIReviewProvider(Protocol):
     ) -> AIImprovementResult: ...
 
     async def check_health(self, timeout_s: float) -> ProviderHealth: ...
+
+
+class ReviewRecordRepository(Protocol):
+    async def save(self, record: ReviewRecord) -> None:
+        """Best effort: a failure is logged as a WARNING and never changes the review."""
+        ...
+
+    def check_health(self) -> bool: ...
 
 
 class IdempotencyRecord(DomainModel):

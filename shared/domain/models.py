@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Self
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -14,6 +15,7 @@ from shared.domain.enums import (
     LocationStatus,
     OutcomeStatus,
     Provenance,
+    ReviewStatus,
     ScoreBand,
     ScoreCap,
     Severity,
@@ -161,6 +163,19 @@ class ToolOutcome(DomainModel):
     tool: str
     tool_version: str | None
     outcome: StageOutcome
+
+
+class CodeValidation(DomainModel):
+    """Result of `LanguageAdapter.validate_generated_code` (§5.8, §14.3 steps 5-6)."""
+
+    valid: bool
+    reason: str | None  # internal only (DOES_NOT_PARSE, INTERFACE_CHANGED); never shown
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.valid != (self.reason is None):
+            raise ValueError("an invalid result has a reason; a valid one has none")
+        return self
 
 
 class SyntaxCheck(DomainModel):
@@ -383,3 +398,33 @@ class ReviewResult(DomainModel):
 class ReviewFailure(DomainModel):
     code: ErrorCode
     message: str = Field(min_length=1, max_length=200)
+
+
+class ReviewRecord(DomainModel):
+    """The metadata-only persistence record (§19.2): no source, hash, key, issue text or code."""
+
+    review_id: UUID
+    created_at: datetime
+    finished_at: datetime | None
+    language: Language
+    status: ReviewStatus
+    error_code: ErrorCode | None
+    overall_score: int | None = Field(ge=0, le=100)
+    score_provisional: bool
+    assessed_weight: int | None = Field(ge=0, le=100)
+    coverage_complete: bool
+    issue_count: int = Field(ge=0)
+    critical_count: int = Field(ge=0)
+    high_count: int = Field(ge=0)
+    medium_count: int = Field(ge=0)
+    low_count: int = Field(ge=0)
+    static_status: OutcomeStatus
+    ai_status: OutcomeStatus
+    improvement_status: OutcomeStatus
+    ai_provider: str | None
+    ai_model: str | None
+    prompt_version: str | None
+    scoring_policy_version: str
+    source_bytes: int = Field(ge=0)
+    source_lines: int = Field(ge=0)
+    duration_ms: int = Field(ge=0)
