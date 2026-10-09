@@ -2861,12 +2861,12 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | Milestone | Scope | Done when |
 |---|---|---|
 | **M0 Bootstrap** | Repository layout. Python 3.14.8 (`.python-version`, `requires-python`) and Node.js 24.21.0 (`.nvmrc`, `engines`). `pyproject.toml` with `pylint==4.1.2` and `bandit==1.9.4`. Lockfiles. Frontend scaffold. Lint and type configs. `.env.example`. **Environment record** written, including the exact Ollama version. | `uv run pytest` and `npm run test` run. The architecture tests and **all tool contract tests** (§8.8, including exit codes) pass. The Python 3.14 dependency check (§21.2) passes. **Status: COMPLETED** through PR-01 (§22.5), merged on 2026-10-07. The tool and runtime baseline was verified first by the Q7 experiment (§8.9), and again by PR-01's own tests. Ollama was not installed when PR-01 was implemented, so the environment record's Ollama version is `null`, and it MUST be recorded before PR-06 (M2 prerequisite). |
-| **M1 Vertical slice (fake AI)** | Immutable domain; configuration (including the context-budget startup check); submission validation; idempotency; the Python adapter; deterministic numbering; fake provider; `AIResponseProcessor` with post-sanitization re-validation; location matching; corroboration and claims; coverage and scoring; orchestrator; job service; API; contract export; minimal frontend (editor, idempotent submit, poll, score with "Not assessed", issues) | A review with real static tools and the fake AI renders in the browser. V1–V12 and the §13.8 properties pass. |
+| **M1 Vertical slice (fake AI)** | Immutable domain; configuration (including the context-budget startup check); submission validation; idempotency; the Python adapter; deterministic numbering; fake provider; `AIResponseProcessor` with post-sanitization re-validation; location matching; corroboration and claims; coverage and scoring; orchestrator; job service; API; contract export; minimal frontend (editor, idempotent submit, poll, score with "Not assessed", issues) | A review with real static tools and the fake AI renders in the browser. V1–V12 and the §13.8 properties pass. **Status: COMPLETED** through PR-02 to PR-05 (§22.5); the last merge, PR-05's corrective PR #14, was on 2026-10-09. |
 | **M2 Ollama, improvement backend, model selection** | Ollama adapter (generated schema, `think: false`, per-call budget, retry, `done_reason`); readiness with model and digest checks; **backend improvement operation and §14 validation** (needed by C3 and C4); evaluation tooling (`run_eval.py`, reports). Then, in order: **freeze Dataset v1** → prompt v1 draft as the comparison snapshot → `$ref` compatibility check → Stage A eligibility → Stage B primary runs for all candidates → Stages C–E → development-set prompt refinement with recorded revisions (D-95) → final evaluation gate (seeds 42–44, at most 3 attempts on distinct revisions) → **freeze prompt v1** → model-selection and freeze records. | The selected model's final evaluation gate is **PASS** independently on each of seeds 42, 43 and 44 (§20.8). Prompt v1's MANIFEST is `frozen`. The model-selection record exists with outcome `SELECTED`. `.env.example` contains `OLLAMA_MODEL` and `OLLAMA_MODEL_DIGEST`. If the outcome is `MODEL_SELECTION_FAILED`, M2 is not done: it halts pending an approved amendment (§20.9 Stage E). |
 | **M3 Complete features (UI)** | Improved-code UI; partial, coverage and failure UI; location linking; banners | Every BS §39 acceptance criterion is demonstrable with the frozen model. |
 | **M4 Hardening** | Logging privacy tests; SQLite repository (implemented, disabled by default, D-86); E2E including the idempotent retry; README, including the V1 limitations, the model licence, and "Performance on the reference machine" (D-89) | All required tests pass. The evaluation reports and records are in `docs/evaluation/`. |
 
-**Implementation status** (recorded 2026-10-08, updated 2026-10-09; this is the authoritative status record):
+**Implementation status** (recorded 2026-10-08, updated 2026-10-10; this is the authoritative status record):
 
 | Item | Kind | Status |
 |---|---|---|
@@ -2880,13 +2880,15 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | **PR-03 — Review domain and pipeline** (§22.5) | M1 implementation task | **COMPLETED.** Merged as PR #6 on 2026-10-08 (merge commit `ac387cd`), followed by the corrective PR #7 (merge commit `377a9c1`). Both branches were deleted locally and remotely. Execution record in §22.5. |
 | **PR-04 — API and OpenAPI contract** (§22.5) | M1 implementation task | **COMPLETED.** Merged as PR #9 on 2026-10-08 (merge commit `b18c778`). Its branch was deleted locally and remotely. Execution record in §22.5. |
 | Observability correction (GitHub PR #11) | Corrective PR after PR-04; not a planned PR and not a row of the §22.5 plan | **COMPLETED.** Merged as PR #11 on 2026-10-08 (merge commit `9823880`). It implemented the §19.1 review events and safe exception diagnostics. Its branch was deleted locally and remotely. Execution record in §22.5, after PR-04's. |
-| M1 vertical slice (PR-02 to PR-05) | Milestone | **IN PROGRESS.** PR-02, PR-03 and PR-04 are completed, and the observability correction (PR #11) has merged; it does not close M1. PR-05 (the minimal browser vertical slice) remains; M1 closes only with PR-05 (§22.5). |
-| **PR-05 — Minimal frontend vertical slice** | M1 implementation task | **NOT STARTED (next).** |
-| M2, M3, M4 (PR-06 to PR-10) | Milestones | **NOT STARTED.** No model has been selected (M2). |
+| **PR-05 — Minimal frontend vertical slice** (§22.5) | Last M1 implementation task | **COMPLETED.** Merged as PR #13 on 2026-10-09 (merge commit `3e7c2d3`), followed by the corrective PR #14 (merge commit `6a4ff8b`). Both branches were deleted locally and remotely. Execution record in §22.5. |
+| M1 vertical slice (PR-02 to PR-05) | Milestone | **COMPLETED.** PR-02 to PR-05 are completed, with the corrective PRs #7, #11 and #14. PR-05's acceptance passed: a review with the real static tools and the fake AI works through the browser (§22.5). |
+| **PR-06 — Ollama integration** (§22.5) | First M2 implementation task | **NOT STARTED (next).** Prerequisite: the Ollama version is recorded in the environment record. |
+| PR-07 to PR-10 | M2, M3 and M4 implementation tasks | **NOT STARTED.** |
+| M2, M3, M4 | Milestones | **NOT STARTED.** No model has been selected (M2). |
 
 This table records the **current state** only.
 - **Normative workflow:** §22.3–22.6 (D-96) is what every implementation PR must follow. It is unchanged.
-- **Execution history:** what actually happened during PR-00, PR-01, PR-02, PR-03 (including PR-03's corrective PR #7), PR-04 and the observability correction that followed it (PR #11) is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
+- **Execution history:** what actually happened during PR-00, PR-01, PR-02, PR-03 (including PR-03's corrective PR #7), PR-04, the observability correction that followed it (PR #11), and PR-05 (including PR-05's corrective PR #14) is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
 
 ### 22.2 Repository state and the Q7 experiment (historical note)
 
@@ -2962,8 +2964,8 @@ CI pattern: ^(feat|fix|docs|test|build|ci|refactor|perf|style|chore)(\([a-z0-9-]
 | PR-02 | `feat/m1-static-analysis` | M1 | Static-analysis core | Static-analysis integration passes | **COMPLETED** (PR #4, merge `bef8644`) |
 | PR-03 | `feat/m1-review-pipeline` | M1 | Review domain and pipeline | Deterministic review passes | **COMPLETED** (PR #6, merge `ac387cd`; corrective PR #7, merge `377a9c1`) |
 | PR-04 | `feat/m1-api-contract` | M1 | Backend API and OpenAPI | API contract passes | **COMPLETED** (PR #9, merge `b18c778`) |
-| PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** | **NOT STARTED** (next) |
-| PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes | NOT STARTED |
+| PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** | **COMPLETED** (PR #13, merge `3e7c2d3`; corrective PR #14, merge `6a4ff8b`) |
+| PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes | **NOT STARTED** (next) |
 | PR-07 | `feat/m2-improvement` | M2 | Improvement backend (§22.1 places it in M2; gates C3/C4 need it) | Improvement tests pass | NOT STARTED |
 | PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** | NOT STARTED |
 | PR-09 | `feat/m3-ui-completion` | M3 | Complete UI behaviour | BS §39 acceptance demonstrable; **closes M3** | NOT STARTED |
@@ -2971,7 +2973,7 @@ CI pattern: ^(feat|fix|docs|test|build|ci|refactor|perf|style|chore)(\([a-z0-9-]
 
 The Status column is the execution record and mirrors the §22.1 status table. The other columns are the original plan. PRs are merged in this order. Each PR's dependencies are all the PRs before it. The table decomposes the §22.1 milestone scope for delivery and does not change it.
 
-*Execution note:* a corrective PR adds no row to this table. PR-03's corrective PR #7 is recorded with PR-03. The observability correction (GitHub PR #11), which followed PR-04 and implemented existing §19.1 requirements that no planned PR owned, has its own record after PR-04's.
+*Execution note:* a corrective PR adds no row to this table. PR-03's corrective PR #7 is recorded with PR-03, and PR-05's corrective PR #14 with PR-05. The observability correction (GitHub PR #11), which followed PR-04 and implemented existing §19.1 requirements that no planned PR owned, has its own record after PR-04's.
 
 **PR-00: Repository foundation.**
 - **Scope:** `.gitignore`; `CONTRIBUTING.md` (summary of §22.3–22.6); `.github/pull_request_template.md` (§22.6); `.github/workflows/ci.yml` with the `commits` check; the protected-`main` settings of §22.3.
@@ -3349,7 +3351,7 @@ The Status column is the execution record and mirrors the §22.1 status table. T
     - **PR-07:** the improvement operation runs §14.3 validation. When it returns a result, or rejects its candidate as `IMPROVED_CODE_INVALID`, the operation itself must log stage 11's start and finish. The orchestrator logs stage 11 only when no candidate exists, so each review keeps exactly one stage-11 finish.
     - **PR-10 (M4):** the M4 logging-privacy deliverable (§22.1) stays M4 scope, including the uvicorn loggers named in §20.3.
   - **Observation:** the exactly-once `review.finished` relies on the in-memory job store never holding its lock across an await, so a sweep and a starting task cannot both act on one PENDING review. A replacement job store would need the same guarantee.
-  - **Scope boundary:** the correction implemented **no** API or schema change, and no frontend, Ollama, prompt assets, improvement-generation operation, evaluation, model selection, SQLite or E2E work. It changed no dependency, scoring or review behaviour. It closes no milestone: M1 remains IN PROGRESS until PR-05.
+  - **Scope boundary:** the correction implemented **no** API or schema change, and no frontend, Ollama, prompt assets, improvement-generation operation, evaluation, model selection, SQLite or E2E work. It changed no dependency, scoring or review behaviour. It closes no milestone: M1 remained IN PROGRESS until PR-05 (recorded below).
   - **Attribution:** none of the three commits, nor the merge commit, nor the PR description carries a Claude attribution.
   - **Branch:** `fix/observability-events` was deleted locally and on GitHub after the merge was verified.
 
@@ -3362,6 +3364,125 @@ The Status column is the execution record and mirrors the §22.1 status table. T
   No visual polish beyond the behavioural rules.
 - **Suggested commits:** `feat(ui): add Monaco code editor`, `feat(ui): add review submission`, `feat(ui): add review polling`, `feat(ui): add score and issue presentation`, `test(ui): add review workflow tests`.
 - **Acceptance:** a complete review using real static tools and the fake AI works through the browser. **This closes M1.**
+- **Execution record: COMPLETED** (the original implementation, PR #13, followed by one corrective PR, #14). M1 is COMPLETED with it.
+  - **Repository:** `HARSHrajput13-code/ai-code-review-assistant`.
+  - **Original implementation.**
+    - **Pull request:** #13, `feat(m1): implement minimal frontend vertical slice`, from `feat/m1-frontend` into `main`. **Merged** on 2026-10-09 at 19:32:10 UTC.
+    - **Merge commit:** `3e7c2d3193757a343605386277757d9f901f00d7`. Its parents are `2c9158d` and the PR head `0dfda5696663340c468231dcad6e87c32a2f209a`, and its tree is identical to the head's.
+    - **Commits** (the suggested commits regrouped: submission and polling share one commit, and the generated types have their own):
+      - `925cb00` `build(ui): generate API types from the OpenAPI snapshot`
+      - `fd678a0` `feat(ui): add review submission and polling`
+      - `5690d4e` `feat(ui): add Monaco code editor`
+      - `de42960` `feat(ui): add score and issue presentation`
+      - `0dfda56` `test(ui): add review workflow tests`
+    - **CI on the head `0dfda56`:** `commits`, `backend` and `frontend` all **PASS** (run 37979597846, and run 37979797795 after a description edit). `backend`: 916 passed. `frontend`: 83 passed in 9 files; `typecheck`, `lint` and `build` clean.
+    - **What PR-05 implemented** (frontend only; no backend, contract, dependency or lockfile change):
+      - **Generated API types and typed client (§6.9).**
+        - The `generate:api` npm script runs `openapi-typescript` on the committed `shared/openapi/openapi.json`, and the output `frontend/src/api/generated/schema.d.ts` is committed. `src/api/generated.test.ts` regenerates it and fails on any difference.
+        - `src/api/client.ts` wraps `openapi-fetch` for the capabilities, submit and poll calls, with types taken only from the generated file. It tells a usable `ErrorBody` apart from a 5xx without one.
+        - The only `package.json` change is that script; every package used was already locked.
+      - **Editor (§15.3, D-15).**
+        - `monaco-editor` is bundled and loaded through `loader.config({ monaco })` with Vite's editor worker, so no CDN is used.
+        - The editor options follow §15.3, and the editor stays editable during a review (BS §24).
+      - **Input and client-side validation (§15.3, §15.5).**
+        - The language select is filled from `capabilities.languages`; V1 offers Python only.
+        - The input meter counts UTF-8 bytes with `TextEncoder`, and lines after CRLF and CR become LF, as the server counts them. It is debounced 150 ms.
+        - Review is disabled for empty, whitespace-only or oversized input and while a review runs ("Reviewing…"). A server 4xx validation error is shown under the editor through the §15.8 error map.
+      - **Session state machine (§15.4).** A reducer covers the seven states and six events. Transitions not listed are ignored, a terminal state accepts only `SUBMIT` and `RESET`, and a polled resource for another review is ignored.
+      - **Idempotent submission (§15.5, D-46).**
+        - There is one `crypto.randomUUID()` key per logical submission.
+        - The POST is retried after 1 s and 2 s, with the same key and an identical body, on a network error or a 5xx without a usable `ErrorBody`.
+        - Every Review click and every "Try again" gets a new key.
+        - `EMPTY_CODE`, `INPUT_TOO_LARGE`, `UNSUPPORTED_LANGUAGE` and `INVALID_REQUEST` return to `idle`. `SERVICE_BUSY`, `IDEMPOTENCY_CONFLICT`, `UNSUPPORTED_MEDIA_TYPE` and exhausted retries fail.
+      - **Polling and its limits (§15.5).**
+        - Polling runs every 1 s through a `setTimeout` chain, so polls never overlap.
+        - Three consecutive network errors are tolerated, and the fourth fails with "Lost connection to the review service." A 404 while polling fails.
+        - The client gives up after `2 × review_timeout_seconds + 30 s`, and an `AbortController` cancels in-flight work on unmount.
+      - **Results (§15.3, §15.6, §13.6).**
+        - **Progress:** "Queued", the two steps, and the elapsed time.
+        - **Score:** the overall score and band text exactly as returned, and "Provisional: based on {assessed_weight}% of the scoring criteria". Of the six category rows, an unassessed one reads "Not assessed", never a bar. There is a sentence per applied cap, and the disclaimer. No scoring logic runs in the frontend.
+        - **Summary:** labelled "Generated from static analysis" only when `summary.source` is `GENERATED`.
+        - **Issues:**
+          - the total and per-severity counts, "Showing N of M" when truncated, and the §15.6 empty-state text;
+          - in the API's order, with no frontend deduplication;
+          - each with a severity badge (text and colour), category, title, location as text, and an occurrence note;
+          - expanded: Problem, Why it matters, Recommendation, the additional locations, and a Details disclosure. The first issue is expanded.
+        - **Text safety (§15.7):** every server text is rendered as a React text node, never as HTML or Markdown.
+      - **Basic failure and partial handling.**
+        - A `FAILED` review and a transport failure both show the mapped message, the code when there is one, and "Try again", which resubmits the same snapshot with a new key.
+        - A `PARTIAL` review reached the `partial` state and showed its result, but without any visible partial indication. Corrective PR #14 added it.
+      - **`App`.** The capabilities load once, and a blocking "Backend unreachable" state offers Retry. The panels sit side by side from 1024 px (§15.2).
+    - **Tests:** frontend 83 passed in 9 files (10 before), using the §20.2 doubles: a fake client, fake timers, and a textarea in place of Monaco in jsdom. Every commit typechecks, lints and passes its tests on its own.
+    - **Acceptance (§22.5), verified in a real browser.** This was a one-off check, not committed; Playwright E2E remains PR-10.
+      - **Setup:**
+        - the backend ran with `APP_ENV=development` and `AI_PROVIDER=fake`, so with the real Pylint 4.1.2, Bandit 1.9.4 and `FakeAIReviewProvider`;
+        - `vite preview` served the production build;
+        - the installed Microsoft Edge was driven headless through the project's own Playwright. Nothing was downloaded or installed.
+      - **Result:**
+        - The empty editor disabled Review, and the meter read `56 / 12000 bytes · 4 / 500 lines`.
+        - Review sent one POST with a UUID `Idempotency-Key`; two polls followed.
+        - The review was `COMPLETED`, so both tools and the fake AI succeeded. It scored 98 ("Few or no concerns detected"), with two Bandit issues and one fake-AI issue.
+        - Text typed during the review was accepted.
+        - Every request went to the local server, with none to a CDN; the only failed request was the browser's automatic `favicon.ico`.
+        - The backend log held only §19.1 events, with no source text.
+    - **Notes:**
+      - Some UI copy is not specified by the CIS and was written for PR-05: the cap sentences, the occurrence note, the idle empty-state text, the "Not assessed" tooltip and the client-cap message.
+      - `npm run build` warns that the main chunk is about 4.3 MB (1.1 MB gzipped), because Monaco is bundled (D-15). The warning does not fail the build.
+  - **Corrective PR.** A post-merge acceptance audit found that a `PARTIAL` review was indistinguishable from a `COMPLETED` one, although §15.4 shows the `partial` state with a partial indication, and that the tests did not prove all of the issue, summary-source, score and polling behaviour.
+    - **Pull request:** #14, `fix(ui): indicate partial review results`, from `fix/m1-partial-notice` into `main`. **Merged** on 2026-10-09 at 20:06:24 UTC.
+    - **Merge commit:** `6a4ff8ba97ec90d45f2551ee5e5abdd31992d4fc`. Its parents are `3e7c2d3` and the PR head `4eff0c1d09c45581165f75695afcce64a78a8382`, and its tree is identical to the head's.
+    - **Commits:**
+      - `2f745d4` `fix(ui): indicate partial review results`
+      - `03612da` `fix(ui): keep polling after a response for another review`
+      - `4eff0c1` `test(ui): cover issue display, summary source, score and polling`
+    - **Corrections** (conformance to the existing §15.4 and §15.5 rules; no new product functionality):
+      1. **Partial indication.**
+         - **Display:** when the API status is `PARTIAL`, a plain-text `role="status"` notice appears above the result: "Partial result: some analysis did not complete, so issues may be missing." The score, summary and issues are still shown. A `COMPLETED` review never shows it.
+         - **Trigger:** only the API's `review.status`, never coverage or warnings.
+         - **Wording:** the text is basic and written for this correction. The per-stage §17.4 banner texts remain PR-09.
+      2. **Polling lifecycle.**
+         - **The defect:** the reducer ignored a polled resource for another review, but the polling loop still stopped when that resource was terminal. The session was then left in `analyzing`, with no client cap.
+         - **The fix:** such a response is now skipped, and polling continues for the submitted review.
+         - This is a lifecycle-correctness fix (BS §24: no ambiguous state), not a new feature.
+    - **Tests added:**
+      - **Partial:** the notice appears for `PARTIAL` together with the score, summary and issues, and not for `COMPLETED`, nor for a `COMPLETED` review with incomplete coverage and a warning.
+      - **Issues:**
+        - severity, title, Problem, Why it matters and Recommendation, matched to `summary`, `impact` and `recommendation`;
+        - the API's order kept (a LOW issue listed before a CRITICAL one stays first);
+        - "Showing 50 of 75" with 50 cards when truncated, and no "Showing" line otherwise;
+        - a null location shows no invented line number.
+      - **Summary source:** the same text with `source` `AI` and `GENERATED`; only `GENERATED` is labelled.
+      - **Score:** the overall score and band are shown as returned even when they disagree with the scoring policy, and an unassessed row shows no 0 or 100.
+      - **Submission and polling:**
+        - Review is ignored while submitting and while analyzing;
+        - polling never POSTs;
+        - polling stops at `COMPLETED`, `PARTIAL` and `FAILED`;
+        - `PARTIAL` ends with its data and no error;
+        - a response for another review is ignored while polling continues.
+
+        Same-key retries and a new key per logical submission were already tested by PR #13.
+      - **Mutation checks during the PR** (not committed): removing the notice condition, or the stale-response skip, each failed its test.
+    - **CI on the head `4eff0c1`:** `commits`, `backend` and `frontend` all **PASS** (run 37983067334, and run 37983277802 after a description edit). `backend`: 916 passed. `frontend`: 92 passed in 9 files; `typecheck`, `lint` and `build` clean.
+    - **Preserved:** PR #14 changed four frontend files only (`ResultsPanel.tsx`, `useReviewSession.ts` and their tests). The generated API types, the OpenAPI and AI schema snapshots, the backend and every dependency are unchanged.
+  - **Final verification**, re-run on `main` at `6a4ff8b`:
+    - **Backend:**
+      - **916 passed**, 0 failed, 0 skipped. The 3 warnings are a third-party `stevedore` deprecation notice, from a Bandit dependency.
+      - coverage **99 %** overall (99.03 %);
+      - Ruff check clean; Ruff format clean (122 files); mypy (strict) clean on 116 files;
+      - architecture tests 131 passed; the API contract tests 9 passed; `export_contracts --check` up to date.
+    - **Frontend:** `npm run test` **92 passed** in 9 files; `typecheck`, `lint` and `build` clean.
+    - **One unreproduced failure:** the first local coverage run reported 1 failed and 915 passed, and ran about twice as long as usual. The failing test's name was not captured. Six later runs passed 916 of 916: four with coverage, and two run concurrently to reproduce the load. CI passed on both PR heads.
+  - **Left to later PRs, as planned:**
+    - **PR-09:**
+      - the improved-code panel;
+      - issue-location linking to editor lines;
+      - `PartialResultBanner` with the §17.4 texts, and `CoverageNotice`;
+      - `ServiceStatusBanner`, the `GET /health/ready` load, and the test-provider badge;
+      - the remaining BS §39 behaviour.
+    - **PR-10:** Playwright E2E, including the idempotent retry.
+  - **Scope boundary:** neither PR implemented any Ollama, prompt-asset, improvement-generation, evaluation, model-selection, SQLite or E2E work, and neither changed the backend or the API contract. No model is selected.
+  - **Attribution:** none of the eight commits, nor either merge commit, nor either PR description carries a Claude attribution.
+  - **Branches:** `feat/m1-frontend` and `fix/m1-partial-notice` were deleted locally and on GitHub after each merge was verified.
 
 **PR-06: Ollama integration.**
 - **Scope:**
@@ -3768,7 +3889,7 @@ This audit was performed afresh on the complete document, after the final correc
      - this §27.
    - **Status consistency.**
      - In the §22.1 status table, PR-00, PR-01 and PR-02 each appear once, as COMPLETED.
-     - M0 is COMPLETED. M1 is IN PROGRESS: it closes only with PR-05.
+     - M0 is COMPLETED. At the time of this check, M1 was IN PROGRESS; it closes only with PR-05. Check 14 records its closure.
      - At the time of this check, PR-03 was NOT STARTED (next) and M2–M4 were NOT STARTED. Check 11 supersedes this for PR-03.
      - The §22.5 Status column agrees with the table.
      - At the time of this check, no section claimed that PR-02 implemented AI or review-pipeline functionality, that M1 is closed, or that PR-03 had started. No model is selected.
@@ -3788,7 +3909,7 @@ This audit was performed afresh on the complete document, after the final correc
      - this §27. Check 10, the §27.2 PR-02 row and criterion 15 are marked as historical. §27.6 is updated, including one stale current-state sentence ("no review functionality exists yet"), which predated PR-02 and PR-03.
    - **Status consistency.**
      - In the §22.1 status table, PR-00, PR-01, PR-02 and PR-03 each appear once, as COMPLETED. M0 is COMPLETED.
-     - M1 is IN PROGRESS. At the time of this check, PR-04 and PR-05 remained, and it closes only with PR-05.
+     - At the time of this check, M1 was IN PROGRESS, PR-04 and PR-05 remained, and it closes only with PR-05. Check 14 records its closure.
      - At the time of this check, PR-04 was NOT STARTED (next), and PR-05 to PR-10 and M2–M4 were NOT STARTED. Check 12 supersedes this for PR-04.
      - The §22.5 Status column agrees with the table.
      - At the time of this check, no section claimed that M1 is closed, that PR-04 had started, or that a model is selected.
@@ -3808,10 +3929,10 @@ This audit was performed afresh on the complete document, after the final correc
      - this §27. Check 11, the §27.2 PR-03 row and criterion 16 are marked as historical, and §27.6 is updated.
    - **Status consistency.**
      - In the §22.1 status table, PR-00 to PR-04 each appear once, as COMPLETED. M0 is COMPLETED.
-     - M1 is IN PROGRESS: PR-05 remains, and it closes M1.
-     - PR-05 is NOT STARTED (next). PR-06 to PR-10 are NOT STARTED, as are M2–M4.
+     - At the time of this check, M1 was IN PROGRESS: PR-05 remained, and it closes M1.
+     - At the time of this check, PR-05 was NOT STARTED (next), and PR-06 to PR-10 and M2–M4 were NOT STARTED. Check 14 supersedes this for PR-05 and M1.
      - The §22.5 Status column agrees with the table.
-     - No section claims that M1 is closed, that PR-05 has started, or that a model is selected. Milestone ownership is unchanged: PR-06 (Ollama), PR-07 (improvement generation) and PR-08 (evaluation and model selection) remain M2.
+     - At the time of this check, no section claimed that M1 is closed, that PR-05 had started, or that a model is selected. Milestone ownership is unchanged: PR-06 (Ollama), PR-07 (improvement generation) and PR-08 (evaluation and model selection) remain M2.
      - Q7 is still classified only as experimental verification.
    - **Evidence re-verified before recording:** the PR #9 merge, parents, head and CI runs on GitHub; the five commits; and, on `main` at `b18c778`, the test, coverage, lint, type, contract-export and frontend results, the acceptance test, the 21 validation-order probes and the snapshot reproducibility.
    - **Sequencing limitations checked against this document.** Rejecting `AI_PROVIDER=ollama` and `PERSISTENCE_ENABLED=true` at startup, and the interim `SYSTEM_PROMPT_MAX_BYTES` budget check, follow from §22.5 (the Ollama provider and the real prompt assets are PR-06; the SQLite repository is PR-10). They change no requirement.
@@ -3835,10 +3956,10 @@ This audit was performed afresh on the complete document, after the final correc
    - **Status consistency.**
      - In the §22.1 status table, PR-00 to PR-04 each appear once, as COMPLETED. M0 is COMPLETED.
      - The observability correction appears once, as a COMPLETED corrective PR outside the planned sequence.
-     - M1 is IN PROGRESS: PR-05 remains, and it closes M1.
-     - PR-05 is NOT STARTED (next). PR-06 to PR-10 are NOT STARTED, as are M2–M4.
+     - At the time of this check, M1 was IN PROGRESS: PR-05 remained, and it closes M1.
+     - At the time of this check, PR-05 was NOT STARTED (next), and PR-06 to PR-10 and M2–M4 were NOT STARTED. Check 14 supersedes this for PR-05 and M1.
      - The §22.5 Status column agrees with the table for every planned PR, and has no row for the corrective PR.
-     - No section claims that M1 is closed, that PR-05 has started, or that a model is selected.
+     - At the time of this check, no section claimed that M1 is closed, that PR-05 had started, or that a model is selected.
      - Q7 is still classified only as experimental verification.
    - **Evidence re-verified before recording:**
      - on GitHub: the PR #11 merge, parents, head, commits and CI runs, and the protection of `main`;
@@ -3852,6 +3973,51 @@ This audit was performed afresh on the complete document, after the final correc
    - **Mechanical checks repeated** on the complete document:
      - 155 headings, counted as in checks 9–12 without the two-line document title, and 121 distinct `§` references, 0 unresolved. Both are unchanged from check 12: every section the new text cites was already referenced;
      - the §23 register has 96 rows, D-01 to D-96, with no gaps, no duplicates and no unregistered ID; D-96 is registered exactly once;
+     - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
+     - the frozen constants are unchanged.
+   - **Byte-identical**, compared with the text before this pass: everything outside §22.1, §22.5 and §27, including the decision register and every constant.
+
+14. **PR-05 completion record, including the corrective PR #14, and the closure of M1** (2026-10-10; status recording only; no design change, no new decision ID, version unchanged at 0.3):
+   - **What changed:**
+     - §22.1:
+       - the M1 milestone row, which gains its status, as the M0 row did with PR-01;
+       - the status table: the PR-05 and M1 rows, plus rows for PR-06 (next) and PR-07 to PR-10;
+       - the execution-history note.
+     - In §22.5:
+       - the Status column for PR-05 (COMPLETED) and PR-06 (NOT STARTED (next));
+       - the execution note;
+       - the PR-05 execution record below its unchanged plan;
+       - one past-tense pointer in the observability record's scope boundary, which remains historical.
+     - This §27:
+       - checks 10 to 13, the §27.2 rows for PR-02, PR-03, PR-04 and PR #11, and criteria 15 to 18 are marked as historical, where they stated M1 or PR-05 in the present tense;
+       - the new §27.2 row, criterion 19 and §27.6.
+   - **Status consistency:**
+     - In the §22.1 status table, PR-00 to PR-05 each appear once, as COMPLETED. M0 and M1 are COMPLETED.
+     - PR-06 is NOT STARTED (next). PR-07 to PR-10 and M2–M4 are NOT STARTED.
+     - The §22.5 Status column agrees with the table for every planned PR. Corrective PR #14 has no row of its own, and is recorded with PR-05.
+     - No section claims that PR-06 or any Ollama integration has started, that a model is selected, or that any PR-09 UI behaviour exists.
+     - Q7 is still classified only as experimental verification, and no Q7 code was reused.
+   - **Execution history kept distinct.**
+     - The PR-05 record separates the original implementation (PR #13) from the corrective PR #14.
+     - It states that PR #13 showed a `PARTIAL` result without a visible partial indication.
+     - It states that PR #14 added that indication and fixed a polling-lifecycle defect, without new product functionality.
+     - It records PR #14's added tests.
+   - **Evidence re-verified before recording:**
+     - **On GitHub:** for PRs #13 and #14, the merges, merge times, parents, heads, commits and CI runs; the protection of `main`; and the branch deletions.
+     - **On `main` at `6a4ff8b`:**
+       - the backend tests, coverage, lint, type and contract-export results;
+       - the frontend tests, typecheck, lint and build;
+       - that neither PR changed the backend, the contracts, CI or a lockfile.
+   - **Stale-status sweep.** Every match of "IN PROGRESS", "PR-05", "PR #13", "PR #14" and "M1" was classified:
+     - **current:** §22.1, §22.5 Status column, the PR-05 record, the new §27.2 row, criterion 19, §27.6;
+     - **historical**, marked as such: checks 10 to 13, the §27.2 rows for PR-02 to PR #11, criteria 15 to 18, the observability record;
+     - **normative plan:** the §22.1 M1 scope, the §22.5 plan rows and the PR-05 to PR-09 plans;
+     - **negation:** the PR-04 scope boundary.
+
+     No defect remains.
+   - **Mechanical checks repeated** on the complete document:
+     - 155 headings, counted as in checks 9–13, and 124 distinct `§` references, 0 unresolved. That is three more than check 13, because the PR-05 record cites §15.2, §15.7 and §15.8;
+     - the §23 register has 96 rows, D-01 to D-96, with no gaps, no duplicates and no unregistered ID; D-96 is registered exactly once, and there is no D-97;
      - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
      - the frozen constants are unchanged.
    - **Byte-identical**, compared with the text before this pass: everything outside §22.1, §22.5 and §27, including the decision register and every constant.
@@ -3872,10 +4038,11 @@ This audit was performed afresh on the complete document, after the final correc
 | **No implementation** | repository state | In this D-96 pass only this document changed. The repository holds the three specifications only. No code, dependency, branch, commit, PR, BS or TDS change. |
 | **Implementation status (PR-00 record)** | §22.1 status table, §22.5 Status column and PR-00 execution record, header | Consistent. This supersedes the repository-state statement of the D-96 pass in the row above. `main` now holds the baseline and the PR-00 foundation files (merge `b72b3eb`). PR-00 is COMPLETED. PR-01 and M0 to M4 were then NOT STARTED, and no application code, dependency file or Q7 code existed. The row below supersedes this. |
 | **Implementation status (PR-01 record)** | §22.1 status table, §22.5 Status column and PR-01 execution record | Consistent. `main` now also holds the M0 foundation (merge `30ed3b8`). PR-00 and PR-01 are COMPLETED, and M0 is COMPLETED. PR-02 and M1 to M4 were then NOT STARTED, and no review functionality, AI integration, model selection or Q7 code existed. The row below supersedes this. |
-| **Implementation status (PR-02 record)** | §22.1 status table, §22.5 Status column and PR-02 execution record | Consistent. `main` now also holds the static-analysis core (merge `bef8644`). PR-00, PR-01 and PR-02 are COMPLETED, and M0 is COMPLETED. M1 is IN PROGRESS, PR-03 was then NOT STARTED (next), and M2–M4 were NOT STARTED. No AI, Ollama, review-pipeline, API, scoring, improvement, evaluation or model-selection work then existed. The row below supersedes this. |
-| **Implementation status (PR-03 record)** | §22.1 status table, §22.5 Status column and PR-03 execution record (PR #6 and the corrective PR #7) | Consistent. `main` now also holds the review domain and pipeline (merge `ac387cd`) and its corrections (merge `377a9c1`). PR-00 to PR-03 are COMPLETED, and M0 is COMPLETED. M1 is IN PROGRESS (PR-04 and PR-05 then remained), PR-04 was then NOT STARTED (next), and PR-05 to PR-10 and M2–M4 were NOT STARTED. No API, frontend, Ollama, prompt-asset, improvement-generation, evaluation, model-selection or SQLite work then existed. The row below supersedes this. |
-| **Implementation status (PR-04 record)** | §22.1 status table, §22.5 Status column and PR-04 execution record | Consistent. `main` now also holds the API and OpenAPI contract (merge `b18c778`). PR-00 to PR-04 are COMPLETED, and M0 is COMPLETED. M1 is IN PROGRESS (PR-05 remains), PR-05 is NOT STARTED (next), and PR-06 to PR-10 and M2–M4 are NOT STARTED. No frontend vertical slice, Ollama, prompt-asset, improvement-generation, evaluation, model-selection or SQLite work exists. The row below adds the observability correction; it changes none of these statuses. |
-| **Implementation status (observability correction, PR #11)** | §22.1 status table, §22.5 corrective-PR execution record, §7.2, §18, §19.1, D-55 | Consistent. `main` now also holds the §19.1 review events and safe exception diagnostics (merge `9823880`), recorded as a corrective PR after PR-04, outside the planned sequence. PR-00 to PR-04 remain COMPLETED and M0 COMPLETED. M1 is IN PROGRESS (PR-05 remains), PR-05 is NOT STARTED (next), and PR-06 to PR-10 and M2–M4 are NOT STARTED. The PR-06 provider metadata and the PR-07 stage-11 instrumentation are not claimed. |
+| **Implementation status (PR-02 record)** | §22.1 status table, §22.5 Status column and PR-02 execution record | Consistent. `main` now also holds the static-analysis core (merge `bef8644`). PR-00, PR-01 and PR-02 are COMPLETED, and M0 is COMPLETED. M1 was then IN PROGRESS, PR-03 was then NOT STARTED (next), and M2–M4 were NOT STARTED. No AI, Ollama, review-pipeline, API, scoring, improvement, evaluation or model-selection work then existed. The row below supersedes this. |
+| **Implementation status (PR-03 record)** | §22.1 status table, §22.5 Status column and PR-03 execution record (PR #6 and the corrective PR #7) | Consistent. `main` now also holds the review domain and pipeline (merge `ac387cd`) and its corrections (merge `377a9c1`). PR-00 to PR-03 are COMPLETED, and M0 is COMPLETED. M1 was then IN PROGRESS (PR-04 and PR-05 then remained), PR-04 was then NOT STARTED (next), and PR-05 to PR-10 and M2–M4 were NOT STARTED. No API, frontend, Ollama, prompt-asset, improvement-generation, evaluation, model-selection or SQLite work then existed. The row below supersedes this. |
+| **Implementation status (PR-04 record)** | §22.1 status table, §22.5 Status column and PR-04 execution record | Consistent. `main` now also holds the API and OpenAPI contract (merge `b18c778`). PR-00 to PR-04 are COMPLETED, and M0 is COMPLETED. M1 was then IN PROGRESS (PR-05 remained), PR-05 was then NOT STARTED (next), and PR-06 to PR-10 and M2–M4 were NOT STARTED. No frontend vertical slice, Ollama, prompt-asset, improvement-generation, evaluation, model-selection or SQLite work then existed. The row below adds the observability correction; it changes none of these statuses. |
+| **Implementation status (observability correction, PR #11)** | §22.1 status table, §22.5 corrective-PR execution record, §7.2, §18, §19.1, D-55 | Consistent. `main` now also holds the §19.1 review events and safe exception diagnostics (merge `9823880`), recorded as a corrective PR after PR-04, outside the planned sequence. PR-00 to PR-04 remain COMPLETED and M0 COMPLETED. M1 was then IN PROGRESS (PR-05 remained), PR-05 was then NOT STARTED (next), and PR-06 to PR-10 and M2–M4 were NOT STARTED. The PR-06 provider metadata and the PR-07 stage-11 instrumentation are not claimed. The row below supersedes these statuses for PR-05 and M1. |
+| **Implementation status (PR-05 record, PRs #13 and #14)** | §22.1 milestone and status tables, §22.5 Status column and PR-05 execution record, §15.3–§15.7 | Consistent. `main` now also holds the minimal frontend vertical slice (merge `3e7c2d3`) and its partial-indication and lifecycle corrections (merge `6a4ff8b`). PR-00 to PR-05 are COMPLETED, and M0 and M1 are COMPLETED. PR-06 is NOT STARTED (next), and PR-07 to PR-10 and M2–M4 are NOT STARTED. No Ollama, prompt-asset, improvement-generation, evaluation, model-selection, SQLite or E2E work exists, and none of the PR-09 UI behaviour is claimed. |
 
 ### 27.3 Consistency with the parent specifications
 
@@ -3900,10 +4067,11 @@ This audit was performed afresh on the complete document, after the final correc
 | 12 | No section claims production M0 to M4 is implemented; the Q7 experiment is not production code | Met (§22.1, §22.2, §27.6) |
 | 13 | PR-00's completion is recorded with verifiable evidence (PR, merge commit, CI run, protection state); PR-01 and M0 were then explicitly NOT STARTED | Met (§22.1, §22.5) |
 | 14 | PR-01's completion is recorded with verifiable evidence (PR, merge commit, CI results, environment record, M0 acceptance); M0 is COMPLETED; PR-02 and M1–M4 were then explicitly NOT STARTED; no model is selected | Met (§22.1, §22.5) |
-| 15 | PR-02's completion is recorded with verifiable evidence (PR, merge commit, CI, tests, catalogue, failure-path, determinism and boundary verification); M1 is IN PROGRESS, not closed; PR-03 was then NOT STARTED (next); M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
-| 16 | PR-03's completion is recorded with verifiable evidence (PRs #6 and #7, merge commits, CI, tests, contract corrections), with the original implementation and the corrective PR kept distinct and the improvement boundary stated; M1 is IN PROGRESS, not closed; PR-04 was then NOT STARTED (next); PR-05 to PR-10 and M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
-| 17 | PR-04's completion is recorded with verifiable evidence (PR #9, merge commit, CI, tests, the acceptance test, validation-order and snapshot verification) and its sequencing limitations; M1 is IN PROGRESS, not closed; PR-05 is NOT STARTED (next); PR-06 to PR-10 and M2–M4 remain NOT STARTED; no model is selected | Met (§22.1, §22.5) |
-| 18 | The observability correction (GitHub PR #11) is recorded as a corrective PR after PR-04, outside the planned sequence, with verifiable evidence (merge commit, CI, tests, the stage-coverage, correlation and log-privacy verification) and its deferrals to PR-06, PR-07 and PR-10; it changes no status: M1 is IN PROGRESS, not closed; PR-05 is NOT STARTED (next); PR-06 to PR-10 and M2–M4 remain NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 15 | PR-02's completion is recorded with verifiable evidence (PR, merge commit, CI, tests, catalogue, failure-path, determinism and boundary verification); M1 was then IN PROGRESS, not closed; PR-03 was then NOT STARTED (next); M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 16 | PR-03's completion is recorded with verifiable evidence (PRs #6 and #7, merge commits, CI, tests, contract corrections), with the original implementation and the corrective PR kept distinct and the improvement boundary stated; M1 was then IN PROGRESS, not closed; PR-04 was then NOT STARTED (next); PR-05 to PR-10 and M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 17 | PR-04's completion is recorded with verifiable evidence (PR #9, merge commit, CI, tests, the acceptance test, validation-order and snapshot verification) and its sequencing limitations; M1 was then IN PROGRESS, not closed; PR-05 was then NOT STARTED (next); PR-06 to PR-10 and M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 18 | The observability correction (GitHub PR #11) is recorded as a corrective PR after PR-04, outside the planned sequence, with verifiable evidence (merge commit, CI, tests, the stage-coverage, correlation and log-privacy verification) and its deferrals to PR-06, PR-07 and PR-10; it changes no status: M1 was then IN PROGRESS, not closed; PR-05 was then NOT STARTED (next); PR-06 to PR-10 and M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
+| 19 | PR-05's completion is recorded with verifiable evidence (PRs #13 and #14, merge commits, CI, tests, the browser acceptance), with the original implementation and the corrective PR kept distinct and the PR-09 and PR-10 boundary stated; M1 is COMPLETED; PR-06 is NOT STARTED (next); PR-07 to PR-10 and M2–M4 remain NOT STARTED; no model is selected | Met (§22.1, §22.5) |
 
 ### 27.5 Remaining empirical questions (§24.B)
 
@@ -3924,11 +4092,11 @@ These are settled only by the defined M0 and M2 experiments on the reference har
 
 CIS v0.3, including the D-95 prompt-lifecycle clarification, is consistent with the Behavioural Specification and the Technical Design Specification. Every cross-reference, decision ID, version string, candidate reference and prompt-lifecycle statement was verified as described in §27.1. Neither parent document was modified.
 
-CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0), PR-02 (the M1 static-analysis core), PR-03 (the M1 review domain and pipeline, with its corrective PR #7) and PR-04 (the M1 API and OpenAPI contract) are completed, followed by the observability correction (PR #11); see "Current status" below. The Ollama version must be recorded before PR-06.
+CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0), PR-02 (the M1 static-analysis core), PR-03 (the M1 review domain and pipeline, with its corrective PR #7), PR-04 (the M1 API and OpenAPI contract), the observability correction (PR #11) and PR-05 (the minimal frontend vertical slice, with its corrective PR #14) are completed, and M1 is closed; see "Current status" below. The Ollama version must be recorded before PR-06.
 
 The remaining model-specific and prompt-specific outcomes are controlled empirical results to be obtained through the explicitly defined M0/M2 evaluation process.
 
-**Current status** (2026-10-09; the authoritative record is §22.1):
+**Current status** (2026-10-10; the authoritative record is §22.1):
 
 - **Normative workflow:** every implementation PR follows §22.3–22.6 (D-96), which is unchanged.
 - **Execution history:**
@@ -3936,6 +4104,7 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
   - The repository workflow was then established through PR-00. Its two recorded deviations, protection timing and attribution cleanup, are historical only (§22.5).
   - The production M0 was then implemented through PR-01, the M1 static-analysis core through PR-02, and the M1 review domain and pipeline through PR-03. PR-03's corrective PR #7 brought it into conformance with the existing §5.8 contracts and D-48, and added required tests. The M1 API and OpenAPI contract followed through PR-04 (§22.5).
   - The corrective PR #11 then implemented the existing §19.1 review events and safe exception diagnostics (§7.2, §18, D-55). It is recorded after PR-04 in §22.5 and is not a planned PR.
+  - The minimal frontend vertical slice followed through PR-05 (PR #13). Its corrective PR #14 added the missing basic partial-result indication, fixed a polling-lifecycle defect, and added the missing regression tests. PR-05's acceptance closed M1 (§22.5).
 - **Current state:**
   - `main` is protected (§22.3). `commits`, `backend` and `frontend` are required checks. The repository is public.
   - **PR-00 is COMPLETED** and merged (PR #1, merge commit `b72b3eb`, `commits` CI PASS). Its branch was deleted locally and remotely.
@@ -3949,5 +4118,6 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
     - It logs exceptions as type and stack frames only.
     - The provider metadata fields wait for PR-06, and stage-11 start and finish events for the PR-07 improvement operation.
     - It closes no milestone.
-  - **M1 is IN PROGRESS.** PR-05 (the minimal browser vertical slice) remains; it closes M1.
-  - **PR-05 (minimal frontend vertical slice) is NOT STARTED (next).** PR-06 to PR-10 and M2–M4 are NOT STARTED, and no model has been selected.
+  - **PR-05 (M1 minimal frontend vertical slice) is COMPLETED** and merged (PR #13, merge commit `3e7c2d3`), with its corrective PR #14 (merge commit `6a4ff8b`); `commits`, `backend` and `frontend` CI PASS on both. Both branches were deleted locally and remotely. The PR-09 UI behaviour (improved-code panel, location linking, the full partial, coverage and service-status banners) is not implemented yet.
+  - **M1 is COMPLETED.** A review with the real static tools and the fake AI works through the browser.
+  - **PR-06 (Ollama integration) is NOT STARTED (next).** The Ollama version must be recorded first. PR-07 to PR-10 and M2–M4 are NOT STARTED, and no model has been selected.
