@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "generate:api": "openapi-typescript ../shared/openapi/openapi.json -o src/api/generated/schema.d.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
