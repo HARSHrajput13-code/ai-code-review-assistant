@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { ReviewResource } from "../../api/client";
 import { capabilities, completed, issue, resource, result, running } from "../../test-fixtures";
@@ -50,6 +50,7 @@ it("renders a completed review: score, band, disclaimer, summary and issues", ()
     expect(within(issues).getByRole("heading", { name: heading })).toBeDefined();
   }
   expect(within(issues).getByText("Pass the arguments as a list.")).toBeDefined();
+  expect(within(issues).queryByText(/^Showing/)).toBeNull();
   expect(screen.queryByText(PARTIAL_NOTICE)).toBeNull();
 });
 
@@ -70,6 +71,15 @@ it("takes partial status only from the API status, not from coverage or warnings
   expect(screen.queryByRole("status")).toBeNull();
 });
 
+it("shows the overall score and band exactly as the API returns them", () => {
+  const base = result();
+  // Deliberately not what the scoring policy would give: the frontend must not recompute either.
+  show("completed", completed({ result: result({ score: { ...base.score, overall: 42, band: "EXCELLENT" } }) }));
+  const score = screen.getByRole("region", { name: "Score" });
+  expect(within(score).getByText("42")).toBeDefined();
+  expect(score.textContent).toContain("Few or no concerns detected");
+});
+
 it("shows unassessed categories as Not assessed, never as a bar, with the provisional weight", () => {
   const base = result();
   const categories = base.score.categories.map((row) =>
@@ -84,6 +94,7 @@ it("shows unassessed categories as Not assessed, never as a bar, with the provis
   expect(screen.getAllByTestId("score-bar")).toHaveLength(4);
   const readability = screen.getByText("Readability").closest("li");
   expect(readability && within(readability).queryByTestId("score-bar")).toBeNull();
+  expect(readability?.textContent).toBe("ReadabilityNot assessed"); // no 0 or 100
 });
 
 it("states each applied cap", () => {
@@ -104,6 +115,46 @@ it("labels a generated summary and notes a truncated issue list", () => {
   show("completed", completed({ result: truncated }));
   expect(screen.getByText("Generated from static analysis")).toBeDefined();
   expect(screen.getByText("Showing 50 of 75")).toBeDefined();
+  expect(screen.getByText("Issues (75)")).toBeDefined();
+  expect(within(screen.getByRole("region", { name: "Issues" })).getAllByRole("listitem")).toHaveLength(50);
+});
+
+it("labels the summary from summary.source, not from its text", () => {
+  const text = "Generated from static analysis: one issue was found.";
+  show("completed", completed({ result: result({ summary: { text, source: "AI" } }) }));
+  expect(screen.getByText(text)).toBeDefined();
+  expect(screen.queryByText("Generated from static analysis")).toBeNull();
+  cleanup();
+  show("completed", completed({ result: result({ summary: { text, source: "GENERATED" } }) }));
+  expect(screen.getByText(text)).toBeDefined();
+  expect(screen.getByText("Generated from static analysis")).toBeDefined();
+});
+
+it("shows each issue's severity, title, problem, impact and recommendation in the API's order", () => {
+  const issues = [
+    issue({ issue_id: "ISS-001", severity: "LOW", title: "First", summary: "S1", impact: "I1", recommendation: "R1" }),
+    issue({ issue_id: "ISS-002", severity: "CRITICAL", title: "Second", summary: "S2", impact: "I2", recommendation: "R2" }),
+    issue({ issue_id: "ISS-003", severity: "MEDIUM", title: "Third", summary: "S3", impact: "I3", recommendation: "R3" }),
+  ];
+  show("completed", completed({ result: result({ issues, total_issue_count: 3 }) }));
+  const cards = within(screen.getByRole("region", { name: "Issues" })).getAllByRole("listitem");
+  const expected = [
+    ["Low", "First", "S1", "I1", "R1"],
+    ["Critical", "Second", "S2", "I2", "R2"],
+    ["Medium", "Third", "S3", "I3", "R3"],
+  ];
+  expect(cards).toHaveLength(3);
+  cards.forEach((card, n) => {
+    const [severity, title, problem, impact, recommendation] = expected[n];
+    expect(within(card).getByText(severity)).toBeDefined();
+    expect(within(card).getByText(title)).toBeDefined();
+    const sections = [...card.querySelectorAll("h3")].map((h) => [h.textContent, h.nextElementSibling?.textContent]);
+    expect(sections).toEqual([
+      ["Problem", problem],
+      ["Why it matters", impact],
+      ["Recommendation", recommendation],
+    ]);
+  });
 });
 
 it("describes an empty issue list without claiming the code has no problems", () => {
@@ -126,6 +177,7 @@ it("shows locations, occurrences and details, with the first issue expanded", ()
   expect(screen.getByText("Location not determined")).toBeDefined();
   const cards = screen.getAllByRole("listitem").filter((item) => item.querySelector("details"));
   expect(cards.map((card) => card.querySelector("details")?.open)).toEqual([true, false]);
+  expect(cards[1].textContent).not.toMatch(/Lines? \d/); // no invented line number
   expect(screen.getAllByText("bandit (bandit:B602)")).toHaveLength(2);
 });
 
