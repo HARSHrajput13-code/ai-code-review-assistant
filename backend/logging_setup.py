@@ -35,6 +35,7 @@ ALLOWED_FIELDS = (
     "num_predict",
     "prompt_eval_count",
     "eval_count",
+    "total_duration",
     "token_estimate_exceeded",
     "thinking_emitted",
     "score",
