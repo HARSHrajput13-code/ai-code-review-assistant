@@ -5,6 +5,7 @@
 
 shared/openapi/openapi.json comes from the live FastAPI app (create_app under test settings);
 shared/schemas/*.schema.json come from the Pydantic AI output models (model_json_schema()).
+A draft prompt version's ai/prompts/<version>/MANIFEST gets its SHA-256 lines regenerated (§10.1).
 Output is deterministic: sorted keys, 2-space indentation, a trailing newline.
 """
 
@@ -14,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from ai.prompts.renderer import manifest_text
 from ai.schemas import AIImprovementOutput, AIReviewOutput
 from backend.config import AIProviderName, AppEnv, Settings
 from backend.main import create_app
@@ -32,8 +34,20 @@ def render(document: dict[str, Any]) -> str:
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
+def draft_manifests() -> dict[Path, str]:
+    """Each draft prompt version's MANIFEST, with its hash lines regenerated (§10.1).
+
+    A frozen MANIFEST is never rewritten; the prompt-asset test and startup verify it instead.
+    """
+    found = {}
+    for manifest in sorted((ROOT / "ai/prompts").glob("v*/MANIFEST")):
+        if manifest.read_text(encoding="utf-8").startswith("status: draft\n"):
+            found[manifest] = manifest_text("draft", manifest.parent)
+    return found
+
+
 def contracts() -> dict[Path, str]:
-    return {
+    return draft_manifests() | {
         ROOT / "shared/openapi/openapi.json": render(create_app(test_settings()).openapi()),
         ROOT / "shared/schemas/ai_review_output.schema.json": render(
             AIReviewOutput.model_json_schema()
