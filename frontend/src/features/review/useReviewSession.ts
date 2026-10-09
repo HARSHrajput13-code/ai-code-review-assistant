@@ -177,6 +177,7 @@ async function run(
         continue;
       }
       networkErrors = 0;
+      if (polled.data.review_id !== accepted.data.review_id) continue; // a stale response: keep polling
       send({ type: "POLLED", resource: polled.data });
       if (["COMPLETED", "PARTIAL", "FAILED"].includes(polled.data.status)) return;
     }

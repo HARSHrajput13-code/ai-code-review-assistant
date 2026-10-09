@@ -244,6 +244,41 @@ describe("useReviewSession (§15.5)", () => {
     await advance(10_000);
     expect(fake.polls).toHaveLength(3);
     expect(fake.polls.every((call) => call.reviewId === resource().review_id)).toBe(true);
+    expect(fake.submits).toHaveLength(1); // polling never posts
+  });
+
+  it.each([
+    ["COMPLETED", completed(), "completed"],
+    ["PARTIAL", completed({ status: "PARTIAL" }), "partial"],
+    ["FAILED", failedReview(), "failed"],
+  ] as [string, ReviewResource, Phase][])("stops polling at %s", async (_, terminal, phase) => {
+    const fake = fakeClient([ok(resource(), 202)], [ok(running()), ok(terminal)]);
+    const s = session(fake.client);
+    await s.submit();
+    await advance(2000);
+    expect(s.state().phase).toBe(phase);
+    await advance(10_000);
+    expect(fake.polls).toHaveLength(2);
+    expect(fake.submits).toHaveLength(1);
+  });
+
+  it("treats PARTIAL as a terminal result with data, not as an error", async () => {
+    const partial = completed({ status: "PARTIAL" });
+    const s = session(fakeClient([ok(resource(), 202)], [ok(partial)]).client);
+    await s.submit();
+    await advance(1000);
+    expect(s.state()).toMatchObject({ phase: "partial", review: partial, error: null });
+  });
+
+  it("ignores a poll response for another review and keeps following its own", async () => {
+    const stale = completed({ review_id: "22222222-2222-4222-8222-222222222222" });
+    const fake = fakeClient([ok(resource(), 202)], [ok(stale), ok(completed())]);
+    const s = session(fake.client);
+    await s.submit();
+    await advance(1000);
+    expect(s.state()).toMatchObject({ phase: "analyzing", review: resource() });
+    await advance(1000);
+    expect(s.state()).toMatchObject({ phase: "completed", review: completed() });
   });
 
   it("tolerates three consecutive network errors while polling", async () => {
@@ -305,7 +340,11 @@ describe("useReviewSession (§15.5)", () => {
     const fake = fakeClient([ok(resource(), 202)], [ok(running())]);
     const s = session(fake.client);
     await s.submit();
-    await s.submit();
+    await s.submit(); // while submitting
+    await advance(3000);
+    expect(s.state().phase).toBe("analyzing");
+    await s.submit(); // while analyzing
+    await advance(3000);
     expect(fake.submits).toHaveLength(1);
   });
 
