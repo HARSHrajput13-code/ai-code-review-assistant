@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { ReviewResource } from "../../api/client";
 import { capabilities, completed, issue, resource, result, running } from "../../test-fixtures";
-import { DISCLAIMER, ResultsPanel } from "./ResultsPanel";
+import { DISCLAIMER, PARTIAL_NOTICE, ResultsPanel } from "./ResultsPanel";
 import { initialState, type Phase, type SessionError } from "./useReviewSession";
 
 function show(phase: Phase, review: ReviewResource | null = null, error: SessionError | null = null) {
@@ -50,12 +50,24 @@ it("renders a completed review: score, band, disclaimer, summary and issues", ()
     expect(within(issues).getByRole("heading", { name: heading })).toBeDefined();
   }
   expect(within(issues).getByText("Pass the arguments as a list.")).toBeDefined();
+  expect(screen.queryByText(PARTIAL_NOTICE)).toBeNull();
 });
 
-it("renders a partial review's result", () => {
+it("marks a partial review as partial and keeps its score, summary and issues", () => {
   show("partial", completed({ status: "PARTIAL" }));
-  expect(screen.getByRole("region", { name: "Score" })).toBeDefined();
-  expect(screen.getByRole("region", { name: "Issues" })).toBeDefined();
+  expect(screen.getByRole("status").textContent).toBe(PARTIAL_NOTICE);
+  expect(within(screen.getByRole("region", { name: "Score" })).getByText("70")).toBeDefined();
+  expect(screen.getByText("One security issue was found.")).toBeDefined();
+  expect(within(screen.getByRole("region", { name: "Issues" })).getByText("Shell injection risk")).toBeDefined();
+});
+
+it("takes partial status only from the API status, not from coverage or warnings", () => {
+  const degraded = result({
+    coverage: { complete: false, unassessed_categories: [], missing_components: ["ai_analysis"] },
+    warnings: [{ code: "REDUCED_COVERAGE", message: "Partial result: AI analysis did not complete." }],
+  });
+  show("completed", completed({ result: degraded }));
+  expect(screen.queryByRole("status")).toBeNull();
 });
 
 it("shows unassessed categories as Not assessed, never as a bar, with the provisional weight", () => {

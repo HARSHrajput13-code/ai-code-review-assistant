@@ -38,6 +38,8 @@ export const DISCLAIMER =
   "Automated review score based on the configured analysis criteria. It is not a guarantee of correctness or security.";
 // The AI covers every category, so a category is unassessed only when the AI produced no result (§13.2).
 const NOT_ASSESSED_HINT = "Not assessed: AI analysis, which covers this category, produced no result.";
+// The basic PARTIAL indication (§15.4); the per-stage §17.4 banner texts are PR-09.
+export const PARTIAL_NOTICE = "Partial result: some analysis did not complete, so issues may be missing.";
 
 interface Props {
   state: SessionState;
@@ -55,6 +57,11 @@ export function ResultsPanel({ state, limits, onRetry }: Props) {
   }
   return (
     <div className="flex flex-col gap-6">
+      {review?.status === "PARTIAL" && (
+        <p role="status" className="rounded border border-amber-400 bg-amber-50 p-3 text-amber-900">
+          {PARTIAL_NOTICE}
+        </p>
+      )}
       <ScoreCard result={result} />
       <section aria-label="Summary">
         <h2 className="text-lg font-semibold">Summary</h2>
