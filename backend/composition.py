@@ -1,15 +1,26 @@
 """Composition root: builds the concrete objects from Settings, once (CIS §3, §16.1). Wiring only.
 
-Until the Ollama provider (PR-06) and the SQLite repository (PR-10) exist, a configuration that
-needs them is rejected at startup rather than started half-wired.
+Until the SQLite repository (PR-10) exists, PERSISTENCE_ENABLED=true is rejected at startup rather
+than started half-wired.
 """
 
 import tomllib
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Protocol
 
-from ai.budget import SYSTEM_PROMPT_MAX_BYTES
+import httpx
+
 from ai.fake import FakeAIReviewProvider
+from ai.ollama.provider import OllamaAIReviewProvider, OllamaOptions
+from ai.prompts.renderer import (
+    PromptAssetError,
+    PromptSet,
+    load_prompts,
+    output_schemas,
+    render_system,
+    schema_text,
+)
 from analysis.process import SafeProcessRunner
 from analysis.python.adapter import PythonLanguageAdapter, StaticAnalysisOptions
 from analysis.registry import LanguageRegistry
@@ -22,11 +33,13 @@ from backend.application.readiness import ReadinessService
 from backend.application.validation import SubmissionValidator
 from backend.config import (
     AIProviderName,
+    AppEnv,
     ConfigurationError,
     Settings,
     check_context_budget,
     parent_environment,
 )
+from shared.domain.enums import Language
 from shared.domain.interfaces import AIReviewProvider, LanguageAdapter, ProviderHealth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,18 +66,11 @@ def build_context(
     runner: ReviewRunner | None = None,
 ) -> ApiContext:
     """Build every component. The keyword arguments replace components in tests (§20.2)."""
-    if settings.ai_provider is not AIProviderName.FAKE:
-        raise ConfigurationError(
-            "AI_PROVIDER=ollama is not available yet (the Ollama provider is PR-06); "
-            "use AI_PROVIDER=fake with APP_ENV=development or test"
-        )
     if settings.persistence_enabled:
         raise ConfigurationError(
             "PERSISTENCE_ENABLED=true is not available yet (the SQLite repository is PR-10)"
         )
-    # §9.7 startup check. Until PR-06 measures the rendered system prompts, the largest allowed
-    # size (SYSTEM_PROMPT_MAX_BYTES) is used, so any real prompt within the cap also fits.
-    check_context_budget(settings, SYSTEM_PROMPT_MAX_BYTES, SYSTEM_PROMPT_MAX_BYTES)
+    prompts = prompt_set(settings)
 
     clock = clock or SystemClock()
     adapter = adapter or PythonLanguageAdapter(
@@ -75,11 +81,22 @@ def build_context(
             tool_timeout_s=settings.static_tool_timeout_seconds,
         ),
     )
+    language_names = {adapter.language: adapter.display_name}
+    # §9.7 startup check, on the measured rendered system prompts (the largest per language).
+    check_context_budget(settings, *system_prompt_bytes(prompts, language_names.values()))
+    close = None
+    if provider is None and settings.ai_provider is AIProviderName.OLLAMA:
+        client = httpx.AsyncClient(base_url=settings.ollama_base_url)  # one, shared (§9.3)
+        provider, close = ollama_provider(settings, client, prompts, language_names), client.aclose
     provider = provider or FakeAIReviewProvider(
         retry_count=settings.ai_output_retry_count,
         seed=settings.ollama_seed,
         attempt_limit_s=settings.ollama_timeout_seconds,
         prompt_version=settings.ai_prompt_version,
+        prompts=prompts,
+        language_names=language_names,
+        num_ctx=settings.ollama_num_ctx,
+        num_predict=settings.ollama_num_predict,
     )
     registry = LanguageRegistry([adapter])
     # No Improver until PR-07: improvement reports SKIPPED(DISABLED) (§14.5).
@@ -107,4 +124,53 @@ def build_context(
         review_timeout_seconds=settings.review_timeout_seconds,
         improvement_enabled=False,  # no improvement operation until PR-07
         version=project_version(),
+        close=close,
     )
+
+
+def prompt_set(settings: Settings) -> PromptSet:
+    """The AI_PROMPT_VERSION assets, loaded once; a draft is refused in production (§10.1)."""
+    try:
+        prompts = load_prompts(settings.ai_prompt_version)
+    except PromptAssetError as error:
+        raise ConfigurationError(str(error)) from None
+    if prompts.status == "draft" and settings.app_env is AppEnv.PRODUCTION:
+        raise ConfigurationError(
+            f"AI_PROMPT_VERSION {prompts.version} is a draft; drafts are not allowed in production"
+        )
+    return prompts
+
+
+def system_prompt_bytes(prompts: PromptSet, language_names: Iterable[str]) -> tuple[int, int]:
+    """The largest rendered review and improvement system prompts, in UTF-8 bytes."""
+    names = tuple(language_names)
+    sizes = {
+        operation: max(
+            len(render_system(prompts, operation, name, schema_text(schema)).encode("utf-8"))
+            for name in names
+        )
+        for operation, schema in output_schemas().items()
+    }
+    return sizes["review"], sizes["improve"]
+
+
+def ollama_provider(
+    settings: Settings,
+    client: httpx.AsyncClient,
+    prompts: PromptSet,
+    language_names: dict[Language, str],
+) -> OllamaAIReviewProvider:
+    if settings.ollama_model is None:  # Settings already requires it for AI_PROVIDER=ollama
+        raise ConfigurationError("OLLAMA_MODEL is required when AI_PROVIDER=ollama")
+    options = OllamaOptions(
+        model=settings.ollama_model,
+        model_digest=settings.ollama_model_digest,
+        temperature=settings.ollama_temperature,
+        seed=settings.ollama_seed,
+        num_ctx=settings.ollama_num_ctx,
+        num_predict=settings.ollama_num_predict,
+        timeout_s=settings.ollama_timeout_seconds,
+        keep_alive=settings.ollama_keep_alive,
+        retry_count=settings.ai_output_retry_count,
+    )
+    return OllamaAIReviewProvider(client, options, prompts, language_names)

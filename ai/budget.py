@@ -1,7 +1,7 @@
 """Context budget (CIS §9.7, D-75, D-92). Integer arithmetic only.
 
-PR-03 provides the computation and the startup check, tested against fixture system-prompt sizes;
-PR-06 measures the real rendered prompts and applies the request-time check before every call.
+The startup check is run on the measured rendered system prompts (backend/composition.py), and
+the request-time check before every provider call, retries included (ai/ollama, ai/fake.py).
 """
 
 from shared.domain.errors import AIContextExceeded

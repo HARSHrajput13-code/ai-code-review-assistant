@@ -8,6 +8,7 @@ import pytest
 
 import backend.main
 from ai.fake import FakeAIReviewProvider
+from ai.ollama.provider import OllamaAIReviewProvider
 from backend.composition import build_context, project_version
 from backend.config import AIProviderName, AppEnv, ConfigurationError
 from backend.main import create_app
@@ -120,14 +121,38 @@ def test_docs_only_outside_production() -> None:
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
-        ({"ai_provider": AIProviderName.OLLAMA, "ollama_model": "m"}, "PR-06"),
         ({"persistence_enabled": True}, "PR-10"),
         ({"ollama_num_predict": 4000}, "OLLAMA_NUM_PREDICT"),  # the §9.7 startup check
+        ({"ai_prompt_version": "v99"}, "missing an asset"),  # §10.1: a missing file fails
+        (  # §10.1: a draft prompt version is refused in production
+            {
+                "app_env": AppEnv.PRODUCTION,
+                "ai_provider": AIProviderName.OLLAMA,
+                "ollama_model": "m",
+            },
+            "draft",
+        ),
     ],
 )
 def test_startup_rejects_what_cannot_run(overrides: dict[str, Any], message: str) -> None:
     with pytest.raises(ConfigurationError, match=message):
         build_context(settings(**overrides))
+
+
+def test_ai_provider_ollama_builds_the_ollama_provider_and_closes_its_client() -> None:
+    async def body() -> None:
+        ollama = settings(ai_provider=AIProviderName.OLLAMA, ollama_model="m")
+        context = build_context(ollama, adapter=StubAdapter())
+        provider = context.readiness._provider
+        assert isinstance(provider, OllamaAIReviewProvider)
+        assert provider.descriptor.model == "m" and provider.descriptor.prompt_version == "v1"
+        client = provider._client
+        app = create_app(ollama, context)
+        async with app.router.lifespan_context(app):  # Ollama is not running: degraded only
+            assert not client.is_closed
+        assert client.is_closed
+
+    asyncio.run(body())
 
 
 def test_the_default_composition_uses_the_real_adapter_and_fake_provider() -> None:

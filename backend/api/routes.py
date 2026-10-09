@@ -3,6 +3,7 @@ result; no business branching happens here.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Annotated, Any
 from uuid import UUID
@@ -42,6 +43,7 @@ class ApiContext:
     review_timeout_seconds: int
     improvement_enabled: bool
     version: str
+    close: Callable[[], Awaitable[None]] | None = None  # releases the shared HTTP client
 
 
 def context(request: Request) -> ApiContext:

@@ -36,6 +36,8 @@ def create_app(settings: Settings | None = None, context: ApiContext | None = No
             logger.warning("startup.readiness_degraded")
         yield
         await built.jobs.shutdown()
+        if built.close is not None:
+            await built.close()
 
     docs = settings.app_env is not AppEnv.PRODUCTION
     app = FastAPI(
