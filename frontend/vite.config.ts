@@ -11,5 +11,5 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { host: "127.0.0.1", port: 5173, strictPort: true, proxy },
   preview: { host: "127.0.0.1", port: 5173, strictPort: true, proxy },
-  test: { environment: "jsdom" },
+  test: { environment: "jsdom", setupFiles: ["./src/test-setup.tsx"] },
 });
