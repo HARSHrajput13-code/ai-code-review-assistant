@@ -117,3 +117,20 @@ def test_descriptor_and_health() -> None:
     assert provider.descriptor.provider == "fake"
     health: Any = asyncio.run(provider.check_health(1))
     assert health.available
+
+
+def test_the_call_recorder_captures_the_rendered_prompts() -> None:
+    provider = FakeAIReviewProvider(review_script=INVALID_THEN_VALID)
+    review(provider)
+    first, second = provider.calls
+    assert "print(os.name)" in first.prompt.user and "INSTRUCTION HIERARCHY" in first.prompt.system
+    assert first.prompt.nonce != second.prompt.nonce  # fresh for every call, retries included
+    assert first.prompt.nonce not in SOURCE.text
+    assert first.num_predict == second.num_predict <= 8192
+
+
+def test_the_request_time_budget_applies_before_any_call() -> None:
+    provider = FakeAIReviewProvider(num_ctx=4096)  # the 4,096-token minimum output cannot fit
+    with pytest.raises(ReviewError) as caught:
+        review(provider)
+    assert caught.value.code is ErrorCode.AI_CONTEXT_EXCEEDED and provider.calls == []
