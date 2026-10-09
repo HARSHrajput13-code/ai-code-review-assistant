@@ -246,6 +246,17 @@ describe("useReviewSession (§15.5)", () => {
     expect(fake.polls.every((call) => call.reviewId === resource().review_id)).toBe(true);
   });
 
+  it("ignores a poll response for another review and keeps following its own", async () => {
+    const stale = completed({ review_id: "22222222-2222-4222-8222-222222222222" });
+    const fake = fakeClient([ok(resource(), 202)], [ok(stale), ok(completed())]);
+    const s = session(fake.client);
+    await s.submit();
+    await advance(1000);
+    expect(s.state()).toMatchObject({ phase: "analyzing", review: resource() });
+    await advance(1000);
+    expect(s.state()).toMatchObject({ phase: "completed", review: completed() });
+  });
+
   it("tolerates three consecutive network errors while polling", async () => {
     const steps = [network(), network(), network(), ok(running()), network(), network(), network(), ok(completed())];
     const s = session(fakeClient([ok(resource(), 202)], steps).client);
