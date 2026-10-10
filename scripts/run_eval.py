@@ -99,6 +99,26 @@ def verify_environment() -> dict[str, Any]:
     return record
 
 
+def run_conditions() -> dict[str, Any]:
+    """Free RAM and mains power when a run starts (§20.7 step 3): recorded in every report."""
+    if sys.platform != "win32":
+        return {"free_memory_bytes": None, "on_mains_power": None}
+    script = (
+        "$o = Get-CimInstance Win32_OperatingSystem; $b = Get-CimInstance Win32_Battery;"
+        "@{ free = [string]($o.FreePhysicalMemory * 1024);"
+        " ac = if ($b) { $b.BatteryStatus -eq 2 } else { $true } } | ConvertTo-Json -Compress"
+    )
+    raw = check_environment.run("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+    facts = json.loads(raw) if raw else {}
+    conditions = {
+        "free_memory_bytes": int(facts["free"]) if facts.get("free") else None,
+        "on_mains_power": facts.get("ac"),
+    }
+    if conditions["on_mains_power"] is False:
+        raise EvaluationError("the laptop is on battery; runs need mains power (§20.7)")
+    return conditions
+
+
 def verify_commit() -> str:
     """The backend commit identifies the code: only evaluation outputs may be uncommitted."""
     changed = [
@@ -334,6 +354,7 @@ def command_run(args: argparse.Namespace) -> int:
         begin_final_gate(ledger, revision, identifier)
     print(f"run {run} ({args.purpose}, {len(cases)} cases)", flush=True)
     unload_all_but(None)  # step 2: nothing else loaded; the warm-up loads the candidate
+    conditions = run_conditions()
     started_at = datetime.now(UTC).isoformat()
     results = asyncio.run(execute(args.candidate, args.seed, cases, run))
     identity = {
@@ -355,6 +376,7 @@ def command_run(args: argparse.Namespace) -> int:
         "seed": args.seed,
         "git_commit": commit,
         "environment": {k: record[k] for k in ("hardware", "os", "versions")},
+        "run_conditions": conditions,
         "started_at": started_at,
         "finished_at": datetime.now(UTC).isoformat(),
     }
