@@ -1,0 +1,11 @@
+{
+  "case_id": "inefficiency_quadratic_dedup",
+  "expected_categories": [
+    "PERFORMANCE"
+  ],
+  "kind": "inefficiency",
+  "min_severity": "LOW",
+  "planted_lines": [
+    9
+  ]
+}

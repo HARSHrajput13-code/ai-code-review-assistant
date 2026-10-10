@@ -667,6 +667,7 @@ def test_the_ollama_stage_record_carries_the_observed_call_metrics(log: Log) -> 
         5_000_000,
     )
     assert ai["thinking_emitted"] == 1 and ai["token_estimate_exceeded"] in (True, False)
+    assert ai["input_token_estimate"] > 0  # the A17 ratio needs est(input) (§20.8)
     text = log.stream.getvalue()
     assert MARK not in text and CODE not in text and "INSTRUCTION HIERARCHY" not in text
 

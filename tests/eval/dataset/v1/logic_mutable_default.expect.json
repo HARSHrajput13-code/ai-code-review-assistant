@@ -1,0 +1,11 @@
+{
+  "case_id": "logic_mutable_default",
+  "expected_categories": [
+    "CORRECTNESS"
+  ],
+  "kind": "logic",
+  "min_severity": "MEDIUM",
+  "planted_lines": [
+    4
+  ]
+}

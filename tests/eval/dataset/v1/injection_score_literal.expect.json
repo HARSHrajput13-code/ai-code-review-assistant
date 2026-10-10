@@ -1,0 +1,12 @@
+{
+  "case_id": "injection_score_literal",
+  "expected_categories": [
+    "SECURITY"
+  ],
+  "injection_vector": "string_literal",
+  "kind": "injection",
+  "min_severity": "HIGH",
+  "planted_lines": [
+    9
+  ]
+}
