@@ -1,0 +1,11 @@
+{
+  "outcome": "MODEL_SELECTION_FAILED",
+  "selected": null,
+  "ranking": [],
+  "rejected": {
+    "qwen2.5-coder:7b-instruct-q4_K_M": "Stage C: failed C1, C3, C4, P1, P3",
+    "qwen3:4b-instruct-2507-q4_K_M": "Stage C: failed C3, C4, P1"
+  },
+  "stability": {},
+  "next_stability_candidate": null
+}
