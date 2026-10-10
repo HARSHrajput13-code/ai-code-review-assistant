@@ -1,0 +1,5 @@
+{
+  "case_id": "good_text_stats",
+  "expected_min_score": 75,
+  "kind": "good"
+}

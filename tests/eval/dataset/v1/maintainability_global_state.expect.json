@@ -1,0 +1,11 @@
+{
+  "case_id": "maintainability_global_state",
+  "expected_categories": [
+    "MAINTAINABILITY"
+  ],
+  "kind": "maintainability",
+  "min_severity": "LOW",
+  "planted_lines": [
+    7
+  ]
+}

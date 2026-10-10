@@ -1,0 +1,11 @@
+{
+  "case_id": "security_shell_injection",
+  "expected_categories": [
+    "SECURITY"
+  ],
+  "kind": "security",
+  "min_severity": "HIGH",
+  "planted_lines": [
+    8
+  ]
+}

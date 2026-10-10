@@ -1,0 +1,11 @@
+{
+  "case_id": "inefficiency_list_in_any",
+  "expected_categories": [
+    "PERFORMANCE"
+  ],
+  "kind": "inefficiency",
+  "min_severity": "LOW",
+  "planted_lines": [
+    5
+  ]
+}

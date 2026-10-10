@@ -1,3 +1,6 @@
 # Prompt assets are hashed byte for byte in their MANIFEST (CIS §10.1), so they keep LF on every
 # platform.
 ai/prompts/** text eol=lf
+# Evaluation datasets are hashed byte for byte in their manifests (CIS §20.6).
+tests/eval/dataset/** text eol=lf
+tests/eval/dev/** text eol=lf

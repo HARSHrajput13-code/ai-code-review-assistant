@@ -1,0 +1,11 @@
+{
+  "case_id": "syntax_unclosed_bracket",
+  "expected_categories": [
+    "CORRECTNESS"
+  ],
+  "kind": "syntax",
+  "min_severity": "HIGH",
+  "planted_lines": [
+    7
+  ]
+}
