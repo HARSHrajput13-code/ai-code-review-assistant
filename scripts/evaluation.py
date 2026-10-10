@@ -643,6 +643,100 @@ def comparison_markdown(
     )
 
 
+def _percent(gate: Mapping[str, Any]) -> str:
+    value = gate["value"]
+    shown = f"{value:.1%}" if isinstance(value, float) else _fmt(value)
+    return f"{shown} {'PASS' if gate['passed'] else 'FAIL'}"
+
+
+def selection_record_markdown(
+    outcome: SelectionOutcome,
+    eligibility: Mapping[str, Mapping[str, Any]],
+    primary: Mapping[str, Mapping[str, Any]],
+    notes: str = "",
+) -> str:
+    """The model-selection record (§20.10). With MODEL_SELECTION_FAILED no model field is filled,
+    and every candidate's gates, measurements and failure reason are listed (D-93)."""
+    selected = outcome.outcome == "SELECTED"
+    any_report = next(iter(primary.values()), {})
+    if selected:
+        raise EvaluationError("a SELECTED record needs the final-gate attempts: not written here")
+    lines = [
+        "# Model-selection record",
+        "",
+        "```text",
+        f"Selection outcome:                 {outcome.outcome}",
+        "Selected model:                    (none)",
+        "Selected quantization:             (none)",
+        "Reason (deciding Stage D step):    (none: no candidate passed the mandatory gates)",
+        "Licence (+ restrictions):          (none selected)",
+        f"Evaluation dataset version:        {any_report.get('dataset_version', '—')} "
+        f"(DATASET_MANIFEST {any_report.get('dataset_manifest_sha256', '—')})",
+        f"Prompt version:                    v1, revision {any_report.get('prompt_revision', '—')} "
+        f"(manifest identifier {any_report.get('prompt_manifest_sha256', '—')}, status draft; "
+        "not frozen)",
+        f"Ollama version:                    {any_report.get('ollama_version', '—')}",
+        "Hardware (reference environment):  "
+        + json.dumps(any_report.get("environment", {}).get("hardware", {})),
+        "Prompt refinement history (D-95):  none (refinement starts only after a selection)",
+        "Final candidate designation:       none",
+        "Final-gate attempts (1-3):         none",
+        "```",
+        "",
+        "## Candidates",
+        "",
+    ]
+    for tag in sorted(eligibility):
+        report = primary.get(tag)
+        stage_a = eligibility[tag]
+        lines += [f"### `{tag}`", ""]
+        lines.append(
+            f"- **Stage A:** {'eligible' if stage_a.get('eligible') else 'not eligible'} "
+            f"(digest `{stage_a.get('model_digest')}`, {stage_a.get('parameter_size')}, "
+            f"{stage_a.get('quantization')}, licence {stage_a.get('licence')})"
+        )
+        if report is None:
+            lines += ["- **Stage B:** no primary run", ""]
+            continue
+        gates = " · ".join(f"{name} {_percent(report[name])}" for name in ("C1", "C2", "C3", "C4"))
+        notes_n = " · ".join(
+            f"{name} {_percent(report[name])}" for name in ("N1", "N2", "N3", "N4")
+        )
+        p_gates = " · ".join(
+            f"{name} {_fmt(report[name]['value'])} {'PASS' if report[name]['passed'] else 'FAIL'}"
+            for name in ("T0", "P1", "P2", "P3", "P4", "P5", "P6")
+        )
+        memory, vram = report["peak_model_memory_bytes"], report["peak_vram_bytes"]
+        share = f"{vram / memory:.0%}" if memory and vram else "—"
+        lines += [
+            f"- **Primary run (seed 42):** `{report['run_id']}`, verdict **{report['verdict']}**",
+            f"- **Critical quality gates:** {gates} · AGG {_percent(report['overall_pass_rate'])}",
+            f"- **Informational:** {notes_n}",
+            f"- **Compatibility and resources:** {p_gates}",
+            f"- **Latency:** median {report['median_latency_ms']} ms · p95 "
+            f"{report['p95_latency_ms']} ms · max {report['max_latency_ms']} ms · timeout rate "
+            f"{report['timeout_rate']:.1%} ({report['timeout_count']} cases)",
+            f"- **Resources:** peak model memory {memory} bytes, VRAM share {share}; "
+            f"max token-estimate ratio {_fmt(report['max_token_estimate_ratio'])}",
+            "- **Stability:** not run (no candidate passed Stage C)",
+            f"- **Reason it failed:** {outcome.rejected.get(tag, '—')}",
+            "",
+        ]
+    lines += [
+        "## Rejected candidates and reasons",
+        "",
+        *(f"- `{tag}`: {reason}" for tag, reason in sorted(outcome.rejected.items())),
+        "",
+        "No candidate is chosen as the best of the failed ones (D-93). The gates, the dataset "
+        "and the protocol are unchanged. M2 halts until an approved CIS amendment selects one "
+        "of the §20.9 Stage E next steps.",
+        "",
+    ]
+    if notes:
+        lines += ["## Observations (informational, not gates)", "", notes.strip(), ""]
+    return "\n".join(lines)
+
+
 # --- prompt revisions and the final-gate ledger (§10.1 rules 2-5, D-95) -------------------
 
 

@@ -436,3 +436,25 @@ def test_run_ids_follow_the_report_naming() -> None:
     assert ev.run_id("qwen3:4b-instruct-2507-q4_K_M", "v1", "0123456789abcdef", 42) == (
         "qwen3-4b-instruct-2507-q4_K_M__ds-v1__prompt-01234567__seed-42"
     )
+
+
+# --- the model-selection record (§20.10, D-93) --------------------------------------------
+
+
+def test_a_failed_selection_record_lists_every_candidate_and_no_model() -> None:
+    identity = {name: "x" for name in ev.REPORT_FIELDS[:12]} | {
+        "run_id": "r", "dataset_manifest_sha256": "d", "git_commit": "c", "purpose": "primary",
+    }  # fmt: skip
+    failing = swap(passing(), "security_a", issues=())
+    report = ev.build_report(identity, DATASET, failing) | {"candidate": "a:4b"}
+    pool = [cand("a:4b", 4.0, verdict="FAIL", failed_gates=tuple(report["failed_gates"]))]
+    outcome = ev.select(pool, {})
+    eligibility = {"a:4b": {"eligible": True, "model_digest": "abc", "parameter_size": "4.0B"}}
+    text = ev.selection_record_markdown(outcome, eligibility, {"a:4b": report}, "A note.")
+    assert "Selection outcome:                 MODEL_SELECTION_FAILED" in text
+    assert "Selected model:                    (none)" in text
+    assert "`a:4b`: Stage C: failed C2" in text and "C2 50.0% FAIL" in text
+    assert "## Observations (informational, not gates)" in text and "A note." in text
+    selected = ev.SelectionOutcome(outcome="SELECTED", selected="a:4b")
+    with pytest.raises(EvaluationError):
+        ev.selection_record_markdown(selected, eligibility, {"a:4b": report})

@@ -16,6 +16,7 @@ gate or edits a prompt; refusals are errors, never warnings.
 
 import argparse
 import asyncio
+import io
 import json
 import logging
 import sys
@@ -41,6 +42,7 @@ from scripts.evaluation import (  # noqa: E402
     CaseResult,
     EvaluationError,
     Issue,
+    SelectionOutcome,
     begin_final_gate,
     build_report,
     check_purpose,
@@ -54,6 +56,7 @@ from scripts.evaluation import (  # noqa: E402
     run_id,
     sanitized,
     select,
+    selection_record_markdown,
     sha256,
     verify_dataset,
 )
@@ -524,6 +527,29 @@ def command_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_selection_record(args: argparse.Namespace) -> int:
+    outcome_data = json.loads((REPORTS / f"comparison-round-{args.round}.json").read_text("utf-8"))
+    outcome = SelectionOutcome(**outcome_data)
+    if outcome.outcome != "MODEL_SELECTION_FAILED":
+        raise EvaluationError(f"round {args.round} is {outcome.outcome}: no failure record")
+    eligibility = {
+        record["candidate"]: record
+        for record in (json.loads(p.read_text("utf-8")) for p in REPORTS.glob("eligibility-*.json"))
+    }
+    primary = {}
+    for path in REPORTS.glob("*__ds-v1__*__seed-42.json"):
+        report = json.loads(path.read_text("utf-8"))
+        if report["round"] == args.round and report["purpose"] == "primary":
+            primary[report["candidate"]] = report
+    notes = Path(args.notes).read_text("utf-8") if args.notes else ""
+    target = ROOT / "docs" / "evaluation" / "model-selection-record.md"
+    target.write_text(
+        selection_record_markdown(outcome, eligibility, primary, notes), encoding="utf-8"
+    )
+    print(f"wrote {target.relative_to(ROOT)}")
+    return 0
+
+
 # --- prompt revisions (D-95) --------------------------------------------------------------
 
 
@@ -543,6 +569,9 @@ def command_record_revision(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):  # a cp1252 console cannot print every character
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run", help="one evaluation run")
@@ -554,6 +583,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     run.add_argument("--revision")
     run.add_argument("--round", type=int, default=1)
+    record = commands.add_parser("selection-record", help="the model-selection record")
+    record.add_argument("--round", type=int, default=1)
+    record.add_argument("--notes", help="a Markdown file of informational observations")
     compare = commands.add_parser("compare", help="Stages C-E")
     compare.add_argument("--round", type=int, default=1)
     eligibility = commands.add_parser("eligibility", help="Stage A")
@@ -568,6 +600,7 @@ def main(argv: list[str] | None = None) -> int:
         "run": command_run,
         "eligibility": command_eligibility,
         "compare": command_compare,
+        "selection-record": command_selection_record,
         "record-revision": command_record_revision,
     }[args.command]
     try:
