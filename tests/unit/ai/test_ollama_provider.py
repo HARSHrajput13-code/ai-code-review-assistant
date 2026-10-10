@@ -103,6 +103,7 @@ def test_the_chat_request_follows_the_adapter_contract() -> None:
         "prompt_eval_count": 900,
         "eval_count": 120,
         "total_duration": 5_000_000,
+        "input_token_estimate": est(size),  # the A17 ratio's denominator (§20.8)
         "token_estimate_exceeded": 900 > est(size),
         "thinking_emitted": 0,
     }

@@ -186,6 +186,7 @@ class OllamaAIReviewProvider:
         metrics.attempt, metrics.seed = number, seed
         metrics.num_predict = metrics.prompt_eval_count = metrics.eval_count = None
         metrics.total_duration = metrics.token_estimate_exceeded = None
+        metrics.input_token_estimate = estimated_input_tokens(prompt.system, prompt.user)
         budget = actual_output_budget(
             prompt.system, prompt.user, num_ctx=options.num_ctx, num_predict=options.num_predict
         )
@@ -218,9 +219,10 @@ class OllamaAIReviewProvider:
         metrics.prompt_eval_count = _count(envelope.get("prompt_eval_count"))
         metrics.eval_count = _count(envelope.get("eval_count"))
         metrics.total_duration = _count(envelope.get("total_duration"))
-        if metrics.prompt_eval_count is not None:
-            estimate = estimated_input_tokens(prompt.system, prompt.user)
-            metrics.token_estimate_exceeded = metrics.prompt_eval_count > estimate  # A17
+        if metrics.prompt_eval_count is not None:  # A17
+            metrics.token_estimate_exceeded = (
+                metrics.prompt_eval_count > metrics.input_token_estimate
+            )
         done_reason = envelope.get("done_reason")
         if done_reason == "length":
             raise AIContextExceeded()
