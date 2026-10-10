@@ -23,5 +23,5 @@
     "pylint": "4.1.2",
     "bandit": "1.9.4"
   },
-  "git_commit": "3c7dec2f69e4bb9fac6c724720e1c47c66d183ca"
+  "git_commit": "5518f2b2e3dc7970547317c19e0964b8c5d888be"
 }
