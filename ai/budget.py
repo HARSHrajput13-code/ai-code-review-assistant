@@ -1,7 +1,7 @@
 """Context budget (CIS §9.7, D-75, D-92). Integer arithmetic only.
 
-PR-03 provides the computation and the startup check, tested against fixture system-prompt sizes;
-PR-06 measures the real rendered prompts and applies the request-time check before every call.
+The startup check is run on the measured rendered system prompts (backend/composition.py), and
+the request-time check before every provider call, retries included (ai/ollama, ai/fake.py).
 """
 
 from shared.domain.errors import AIContextExceeded
@@ -13,12 +13,16 @@ IMPROVE_OUTPUT_FACTOR_PERCENT = 115  # IMPROVE_OUTPUT_FACTOR 1.15, in integer fo
 IMPROVE_NOTES_RESERVE_TOKENS = 512
 IMPROVE_MIN_OUTPUT_FLOOR_TOKENS = 1_024
 PROMPT_MAX_STATIC_FINDINGS = 25
-STATIC_FINDING_LINE_BYTES = 400
+STATIC_FINDING_LINE_BYTES = 400  # a serialized line plus its separator, enforced by the renderer
+STATIC_FINDING_TITLE_CHARS = 100  # §10.2 character cuts, applied first; the byte limit may cut more
+STATIC_FINDING_MESSAGE_CHARS = 200
 PROMPT_MAX_IMPROVEMENT_ISSUES = 20
-IMPROVEMENT_ISSUE_LINE_BYTES = 500
+IMPROVEMENT_ISSUE_LINE_BYTES = 500  # likewise, a serialized line plus its separator
+IMPROVEMENT_ISSUE_TITLE_CHARS = 100  # §10.2 character cuts, applied first
+IMPROVEMENT_RECOMMENDATION_CHARS = 300
 SYSTEM_PROMPT_MAX_BYTES = 9_000
 LINE_PREFIX_BYTES = 7
-TASK_LINE_AND_DELIMITER_BYTES = 300
+TASK_LINE_AND_DELIMITER_BYTES = 300  # all fixed user-message text, the omission line included
 
 
 def est(utf8_bytes: int) -> int:
@@ -73,12 +77,19 @@ def startup_budget_problems(
     return problems
 
 
+def estimated_input_tokens(system_message: str, user_message: str) -> int:
+    return est(len(system_message.encode("utf-8")) + len(user_message.encode("utf-8")))
+
+
 def actual_output_budget(
     system_message: str, user_message: str, *, num_ctx: int, num_predict: int
 ) -> int:
     """`min(OLLAMA_NUM_PREDICT, available)`; the available budget may be zero or negative."""
-    size = len(system_message.encode("utf-8")) + len(user_message.encode("utf-8"))
-    available = num_ctx - est(size) - CONTEXT_SAFETY_MARGIN_TOKENS
+    available = (
+        num_ctx
+        - estimated_input_tokens(system_message, user_message)
+        - CONTEXT_SAFETY_MARGIN_TOKENS
+    )
     return min(num_predict, available)
 
 

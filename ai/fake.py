@@ -7,12 +7,32 @@ exercise the real validation path. It never calls Ollama and is not a model-sele
 import asyncio
 import json
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from functools import cache
 from typing import Literal
 
+from ai.budget import (
+    REVIEW_MIN_OUTPUT_TOKENS,
+    actual_output_budget,
+    improve_min_output_tokens,
+    require_output_budget,
+)
+from ai.prompts.renderer import (
+    PromptSet,
+    RenderedPrompt,
+    load_prompts,
+    new_nonce,
+    omitted_static_findings,
+    output_schemas,
+    render_improvement,
+    render_review,
+    render_system,
+    schema_text,
+)
 from ai.provider import attempt_timeout, with_retry
 from ai.validation import process_improvement, process_review
+from shared.domain.enums import Language
 from shared.domain.errors import (
     AIContextExceeded,
     AIProviderTimeout,
@@ -27,9 +47,11 @@ from shared.domain.interfaces import (
     ProviderDescriptor,
     ProviderHealth,
 )
+from shared.domain.metrics import current_ai_metrics
 from shared.domain.models import AIReviewResult, SourceText
 
 DEFAULT_SUMMARY = "Automated test review."
+cached_prompts = cache(load_prompts)
 
 
 @dataclass(frozen=True)
@@ -57,6 +79,8 @@ class FakeCall:
     seed: int
     timeout_s: float
     request: AIReviewRequest | AIImprovementRequest
+    prompt: RenderedPrompt  # the rendered messages, exactly as a real provider would send them
+    num_predict: int
 
 
 def default_review(source: SourceText) -> str:
@@ -88,11 +112,25 @@ class FakeAIReviewProvider:
     seed: int = 42
     attempt_limit_s: float = 180.0
     prompt_version: str = "v1"
+    prompts: PromptSet | None = None  # the loaded version; by default, `prompt_version`'s assets
+    language_names: Mapping[Language, str] = field(
+        default_factory=lambda: {Language.PYTHON: "Python"}
+    )
+    num_ctx: int = 16_384
+    num_predict: int = 8_192
     calls: list[FakeCall] = field(default_factory=list)
     thinking_emitted: int = 0
 
     def __post_init__(self) -> None:
         self._scripts = {"review": deque(self.review_script), "improve": deque(self.improve_script)}
+        self._prompts = self.prompts or cached_prompts(self.prompt_version)
+        self._systems = {
+            (operation, language): render_system(
+                self._prompts, operation, name, schema_text(schema)
+            )
+            for operation, schema in output_schemas().items()
+            for language, name in self.language_names.items()
+        }
 
     @property
     def descriptor(self) -> ProviderDescriptor:
@@ -112,6 +150,7 @@ class FakeAIReviewProvider:
                 candidates=processed.candidates,
                 dropped_issue_count=processed.dropped_issue_count,
                 attempts=number,
+                static_findings_omitted=omitted_static_findings(request),
             )
 
         result, _ = await with_retry(attempt, self.retry_count, deadline)
@@ -138,10 +177,29 @@ class FakeAIReviewProvider:
         deadline: Deadline,
         default: str,
     ) -> str:
+        system = self._systems[(operation, request.language)]
+        if isinstance(request, AIReviewRequest):
+            prompt = render_review(self._prompts, request, system, new_nonce())
+            minimum = REVIEW_MIN_OUTPUT_TOKENS
+        else:
+            prompt = render_improvement(self._prompts, request, system, new_nonce())
+            minimum = improve_min_output_tokens(request.source.byte_size)
+        metrics = current_ai_metrics()
+        metrics.attempt, metrics.seed = number, self.seed + number - 1
+        budget = actual_output_budget(
+            prompt.system, prompt.user, num_ctx=self.num_ctx, num_predict=self.num_predict
+        )
+        metrics.num_predict = None
+        num_predict = require_output_budget(budget, minimum)  # §9.7: no call when it fails
+        metrics.num_predict = num_predict
         script = self._scripts[operation]
         response = script.popleft() if script else FakeResponse()
         timeout = attempt_timeout(self.attempt_limit_s, deadline)
-        self.calls.append(FakeCall(operation, number, self.seed + number - 1, timeout, request))
+        self.calls.append(
+            FakeCall(
+                operation, number, self.seed + number - 1, timeout, request, prompt, num_predict
+            )
+        )
         if response.delay_s:
             await asyncio.sleep(response.delay_s)
         match response.error:
@@ -151,8 +209,9 @@ class FakeAIReviewProvider:
                 raise AIProviderTimeout()
             case "context_exceeded":
                 raise AIContextExceeded()
-        if response.thinking is not None:
-            self.thinking_emitted += 1
+        thinking = response.thinking is not None
+        self.thinking_emitted += thinking
+        metrics.thinking_emitted = (metrics.thinking_emitted or 0) + thinking
         if response.done_reason == "length":
             raise AIContextExceeded()
         if response.done_reason != "stop":

@@ -321,6 +321,7 @@ class AIReviewResult(DomainModel):
     candidates: tuple[FindingCandidate, ...]
     dropped_issue_count: int = Field(ge=0)
     attempts: int = Field(ge=1, le=2)
+    static_findings_omitted: int = Field(default=0, ge=0)  # beyond the prompt cap (§10.2)
 
 
 class ImprovedCode(DomainModel):

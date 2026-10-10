@@ -30,6 +30,9 @@ from backend.review.scoring.policy import ScoringPolicyV1
 from shared.domain.enums import ReviewStatus
 from shared.domain.errors import AIResponseInvalid, ImprovedCodeInvalid
 from shared.domain.models import SourceText, SyntaxCheck
+from tests.unit.ai.ollama_doubles import MODEL as OLLAMA_MODEL
+from tests.unit.ai.ollama_doubles import Ollama, envelope
+from tests.unit.ai.ollama_doubles import provider as ollama
 from tests.unit.backend.api_client import CODE, KEY, REVIEWS, Api, scenario
 from tests.unit.backend.pipeline_doubles import FAILED, SUBMISSION, FakeImprover, StubAdapter
 from tests.unit.builders import FakeClock, ScriptedDeadline
@@ -292,7 +295,10 @@ def test_a_failed_ai_stage_and_the_improvement_it_skips(log: Log) -> None:
     assert (ai["status"], ai["error_code"], ai["level"]) == (
         "FAILED", "AI_MODEL_UNAVAILABLE", "WARNING",
     )  # fmt: skip
-    assert MODEL.items() <= ai.items() and "attempt" not in ai and "exception_type" not in ai
+    assert MODEL.items() <= ai.items() and "exception_type" not in ai
+    # What the provider observed for the call it made (§19.1); nothing it never saw is invented.
+    assert (ai["attempt"], ai["seed"], ai["num_predict"]) == (1, 42, 8192)
+    assert "prompt_eval_count" not in ai and "eval_count" not in ai
     improvement = log.stage(FINISHED, "IMPROVEMENT")
     assert (improvement["skip_reason"], improvement["error_code"]) == (
         "DEPENDENCY_FAILED", "AI_MODEL_UNAVAILABLE",
@@ -605,3 +611,39 @@ def test_a_review_stopped_at_the_checkpoint_logs_no_later_stages(log: Log) -> No
     assert review.status is ReviewStatus.FAILED and review.result is None
     stages = {r["stage"] for r in log.of(review_id) if r["event"] in (STARTED, FINISHED)}
     assert stages == {"PARSING", "STATIC_ANALYSIS", "STATIC_NUMBERING", "AI_ANALYSIS"}
+
+
+def test_the_ollama_stage_record_carries_the_observed_call_metrics(log: Log) -> None:
+    reply = envelope()
+    reply["message"]["thinking"] = f"{MARK} private reasoning"
+    reply["message"]["content"] = reply["message"]["content"].replace("One issue", MARK)
+    server = Ollama(chat=[reply])
+    review, review_id = reviewed(provider=ollama(server))
+    assert review.status is ReviewStatus.COMPLETED
+    ai = log.stage(FINISHED, "AI_ANALYSIS")
+    assert ai["review_id"] == review_id and ai["status"] == "SUCCEEDED"
+    assert (ai["ai_provider"], ai["ai_model"], ai["prompt_version"]) == (
+        "ollama",
+        OLLAMA_MODEL,
+        "v1",
+    )
+    assert (ai["attempt"], ai["seed"]) == (1, 42)
+    assert ai["num_predict"] == server.bodies[0]["options"]["num_predict"]
+    assert (ai["prompt_eval_count"], ai["eval_count"], ai["total_duration"]) == (
+        900,
+        120,
+        5_000_000,
+    )
+    assert ai["thinking_emitted"] == 1 and ai["token_estimate_exceeded"] in (True, False)
+    text = log.stream.getvalue()
+    assert MARK not in text and CODE not in text and "INSTRUCTION HIERARCHY" not in text
+
+
+def test_a_review_that_cannot_fit_the_context_is_partial_with_no_request(log: Log) -> None:
+    server = Ollama()
+    review, _ = reviewed(provider=ollama(server, num_ctx=4096))  # the minimum output cannot fit
+    assert review.status is ReviewStatus.PARTIAL and server.requests == []
+    ai = log.stage(FINISHED, "AI_ANALYSIS")
+    assert (ai["status"], ai["error_code"]) == ("FAILED", "AI_CONTEXT_EXCEEDED")
+    assert (ai["attempt"], ai["seed"]) == (1, 42) and "num_predict" not in ai
+    assert review.result.analysis.ai_analysis.error_code == "AI_CONTEXT_EXCEEDED"

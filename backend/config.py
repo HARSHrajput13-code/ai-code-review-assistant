@@ -2,8 +2,8 @@
 
 Other components receive typed values through their constructors. Invalid configuration fails
 with a readable error listing each invalid key (BS §31). Checks that need the prompt assets
-(the AI_PROMPT_VERSION MANIFEST, and the measured system-prompt sizes for the budget check) take
-those values as inputs; the assets are loaded in PR-06.
+(the AI_PROMPT_VERSION MANIFEST, and the measured system-prompt sizes for the budget check) run in
+the composition root, which loads the assets.
 """
 
 import ipaddress

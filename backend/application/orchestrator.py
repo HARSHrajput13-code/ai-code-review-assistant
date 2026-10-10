@@ -39,6 +39,7 @@ from shared.domain.enums import (
 )
 from shared.domain.errors import ReviewError
 from shared.domain.interfaces import AIReviewProvider, AIReviewRequest, Deadline, LanguageAdapter
+from shared.domain.metrics import collect_ai_metrics
 from shared.domain.models import (
     MAX_ISSUES_RETURNED,
     AIReviewResult,
@@ -352,21 +353,23 @@ class ReviewOrchestrator:
             language=submission.language, source=submission.source, static_findings=findings
         )
         failed, error = None, None
-        try:
-            async with asyncio.timeout(remaining):
-                result = await self._provider.review(request, deadline)
-        except ReviewError as rejected:
-            failed = _failed(rejected.code)
-        except TimeoutError:
-            failed = _failed(ErrorCode.REVIEW_TIMEOUT)
-        except Exception as unexpected:
-            failed, error = _failed(ErrorCode.AI_MODEL_UNAVAILABLE), unexpected
+        with collect_ai_metrics() as metrics:  # what the provider observed (§19.1)
+            try:
+                async with asyncio.timeout(remaining):
+                    result = await self._provider.review(request, deadline)
+            except ReviewError as rejected:
+                failed = _failed(rejected.code)
+            except TimeoutError:
+                failed = _failed(ErrorCode.REVIEW_TIMEOUT)
+            except Exception as unexpected:
+                failed, error = _failed(ErrorCode.AI_MODEL_UNAVAILABLE), unexpected
         if failed is not None:
-            self._finished("AI_ANALYSIS", failed, started, error, **model)
+            self._finished("AI_ANALYSIS", failed, started, error, **model, **metrics.fields())
             return failed, None
         elapsed = self._elapsed_ms(started)
         outcome = StageOutcome(status=OutcomeStatus.SUCCEEDED, duration_ms=elapsed)
-        self._finished("AI_ANALYSIS", outcome, started, attempt=result.attempts, **model)
+        observed = metrics.fields() | {"attempt": result.attempts}
+        self._finished("AI_ANALYSIS", outcome, started, **model, **observed)
         return outcome, result
 
     async def _improve(
@@ -471,6 +474,16 @@ class ReviewOrchestrator:
                 ReviewWarning(
                     code="ISSUES_TRUNCATED",
                     message=f"Showing {MAX_ISSUES_RETURNED} of {len(issues)} issues.",
+                )
+            )
+        if ai is not None and ai.static_findings_omitted:
+            warnings.append(
+                ReviewWarning(
+                    code="STATIC_FINDINGS_TRUNCATED_IN_PROMPT",
+                    message=(
+                        f"{ai.static_findings_omitted} static finding(s) were not included "
+                        "in the AI request."
+                    ),
                 )
             )
         if any(t.outcome.skip_reason is SkipReason.DISABLED for t in static.tools):

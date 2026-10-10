@@ -277,7 +277,13 @@ def test_truncation_and_dropped_issue_warnings() -> None:
     )
     found = result(outcome)
     assert (len(found.issues), found.total_issue_count, found.issues_truncated) == (50, 60, True)
-    assert [w.code for w in found.warnings] == ["ISSUES_TRUNCATED", "AI_ISSUES_DROPPED"]
+    assert [w.code for w in found.warnings] == [
+        "ISSUES_TRUNCATED",
+        "STATIC_FINDINGS_TRUNCATED_IN_PROMPT",  # 60 static findings; the prompt holds 25 (§10.2)
+        "AI_ISSUES_DROPPED",
+    ]
+    omitted = next(w for w in found.warnings if w.code == "STATIC_FINDINGS_TRUNCATED_IN_PROMPT")
+    assert omitted.message.startswith("35 static finding(s)")
     assert found.severity_counts.medium == 60
 
 
