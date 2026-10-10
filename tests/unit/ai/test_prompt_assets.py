@@ -4,24 +4,35 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from ai.budget import (
     IMPROVEMENT_ISSUE_LINE_BYTES,
     PROMPT_MAX_IMPROVEMENT_ISSUES,
+    REVIEW_MIN_OUTPUT_TOKENS,
     STATIC_FINDING_LINE_BYTES,
     SYSTEM_PROMPT_MAX_BYTES,
+    TASK_LINE_AND_DELIMITER_BYTES,
+    actual_output_budget,
+    estimated_input_tokens,
+    improve_min_output_tokens,
+    improve_worst_case_total,
+    review_worst_case_total,
 )
 from ai.prompts.renderer import (
     MANIFEST,
     PLACEHOLDERS,
     PROMPTS_DIR,
+    SEPARATOR,
+    Operation,
     PromptAssetError,
     file_hash_lines,
     issues_block,
     load_prompts,
     manifest_text,
+    numbered_source,
     output_schemas,
     render_improvement,
     render_review,
@@ -33,6 +44,12 @@ from ai.schemas import AIImprovementOutput, AIReviewOutput
 from shared.domain.enums import Category, Confidence, Language, Severity
 from shared.domain.interfaces import AIImprovementRequest, AIReviewRequest
 from shared.domain.models import SourceText
+from tests.unit.ai.prompt_limits import (
+    CHARACTERS,
+    LONGEST_RULE,
+    worst_improvement,
+    worst_review,
+)
 from tests.unit.builders import issue, static_finding
 
 V1 = PROMPTS_DIR / "v1"
@@ -194,15 +211,82 @@ def test_rendering_is_deterministic_for_a_given_nonce() -> None:
     )
 
 
-def test_static_findings_are_capped_cut_and_ordered() -> None:
-    findings = tuple(
-        static_finding(n, title="t" * 150, summary="m" * 600, line=1) for n in range(30, 0, -1)
+# --- serialized-line byte limits (§10.2, §9.7; §20.3 "with the per-line byte caps") -----------
+
+
+def item_lines(block: str) -> list[str]:
+    return [line for line in block.split(SEPARATOR) if line.startswith("{")]
+
+
+def size(line: str) -> int:
+    """A line's UTF-8 bytes plus the separator its budget includes."""
+    return len(line.encode("utf-8")) + len(SEPARATOR)
+
+
+def fits_one_more(item: dict[str, Any], key: str, original: str, limit: int) -> bool:
+    longer = item | {key: original[: len(item[key]) + 1]}
+    return size(json.dumps(longer, ensure_ascii=True, separators=(",", ":"))) <= limit
+
+
+@pytest.mark.parametrize("character", CHARACTERS.values(), ids=CHARACTERS.keys())
+def test_every_static_line_fits_400_bytes_after_escaping(character: str) -> None:
+    request = worst_review(character, extra=5)
+    block = static_findings_block(request)
+    lines = item_lines(block)
+    assert len(lines) == 25 and block.endswith(SEPARATOR + "(5 further findings omitted)")
+    title_cut, message_cut = character * 100, character * 200  # the §10.2 character cuts
+    for n, line in enumerate(lines, start=1):
+        assert size(line) <= STATIC_FINDING_LINE_BYTES
+        item = json.loads(line)
+        assert (item["id"], item["rule"], item["line"]) == (f"S{n}", LONGEST_RULE, 500)
+        assert item["title"] and title_cut.startswith(item["title"])
+        assert item["message"] and message_cut.startswith(item["message"])
+        if item["message"] != message_cut:  # cut further: the longest prefix that fits
+            assert not fits_one_more(item, "message", message_cut, STATIC_FINDING_LINE_BYTES)
+        if item["title"] != title_cut:  # only once the message is down to one character
+            assert len(item["message"]) == 1
+            assert not fits_one_more(item, "title", title_cut, STATIC_FINDING_LINE_BYTES)
+    assert static_findings_block(request) == block  # deterministic
+
+
+@pytest.mark.parametrize("character", CHARACTERS.values(), ids=CHARACTERS.keys())
+def test_every_issue_line_fits_500_bytes_after_escaping(character: str) -> None:
+    request = worst_improvement(character)
+    more = AIImprovementRequest(
+        language=Language.PYTHON, source=request.source, issues=request.issues * 2
     )
+    block = issues_block(more)
+    lines = item_lines(block)
+    assert len(lines) == PROMPT_MAX_IMPROVEMENT_ISSUES == len(block.split(SEPARATOR))
+    title_cut, recommendation_cut = character * 100, character * 300
+    for line in lines:
+        assert size(line) <= IMPROVEMENT_ISSUE_LINE_BYTES
+        item = json.loads(line)
+        assert list(item) == [
+            "id",
+            "severity",
+            "category",
+            "title",
+            "line",
+            "end_line",
+            "recommendation",
+        ]
+        assert item["title"] and title_cut.startswith(item["title"])
+        assert item["recommendation"] and recommendation_cut.startswith(item["recommendation"])
+        if item["recommendation"] != recommendation_cut:
+            limit = IMPROVEMENT_ISSUE_LINE_BYTES
+            assert not fits_one_more(item, "recommendation", recommendation_cut, limit)
+        if item["title"] != title_cut:
+            assert len(item["recommendation"]) == 1
+    assert issues_block(more) == block
+
+
+def test_plain_text_within_the_limit_keeps_the_character_cuts() -> None:
+    findings = tuple(static_finding(n, title="t" * 48, summary="m" * 600) for n in range(30, 0, -1))
     request = AIReviewRequest(language=Language.PYTHON, source=SOURCE, static_findings=findings)
-    lines = static_findings_block(request).splitlines()
-    assert len(lines) == 26 and lines[-1] == "(5 further findings omitted)"
-    parsed = [json.loads(line) for line in lines[:-1]]
-    assert [p["id"] for p in parsed] == [f"S{n}" for n in range(1, 26)]
+    lines = item_lines(static_findings_block(request))
+    parsed = [json.loads(line) for line in lines]
+    assert [p["id"] for p in parsed] == [f"S{n}" for n in range(1, 26)]  # S order, capped at 25
     assert list(parsed[0]) == [
         "id",
         "line",
@@ -213,39 +297,89 @@ def test_static_findings_are_capped_cut_and_ordered() -> None:
         "title",
         "message",
     ]
-    assert (len(parsed[0]["title"]), len(parsed[0]["message"])) == (100, 200)
-    # The §10.2 cuts bound each line; the JSON keys add about 10 % to the nominal 400 bytes,
-    # which the request-time budget (on the actual bytes) absorbs.
-    assert all(len(line.encode()) <= STATIC_FINDING_LINE_BYTES * 11 // 10 for line in lines)
+    assert (len(parsed[0]["title"]), len(parsed[0]["message"])) == (48, 200)  # no further cut
+    assert all(size(line) <= STATIC_FINDING_LINE_BYTES for line in lines)
 
 
-def test_issues_are_capped_and_cut() -> None:
-    issues = tuple(
-        issue(
-            Category.CORRECTNESS,
-            Severity.LOW,
-            Confidence.LOW,
-            line=1,
-            title="t" * 150,
-            recommendation="r" * 800,
-        )
-        for _ in range(25)
-    )
-    request = AIImprovementRequest(language=Language.PYTHON, source=SOURCE, issues=issues)
-    lines = issues_block(request).splitlines()
-    assert len(lines) == PROMPT_MAX_IMPROVEMENT_ISSUES
-    first = json.loads(lines[0])
-    assert list(first) == [
-        "id",
-        "severity",
-        "category",
-        "title",
-        "line",
-        "end_line",
-        "recommendation",
-    ]
-    assert (len(first["title"]), len(first["recommendation"])) == (100, 300)
-    assert all(len(line.encode()) <= IMPROVEMENT_ISSUE_LINE_BYTES * 11 // 10 for line in lines)
+def test_the_source_objects_are_not_changed() -> None:
+    request = worst_review()
+    before = request.model_copy(deep=True)
+    static_findings_block(request)
+    assert request == before
+
+
+def test_a_line_that_cannot_fit_fails_instead_of_overflowing() -> None:
+    huge = static_finding(1, rule="pylint:" + "x" * STATIC_FINDING_LINE_BYTES)
+    request = AIReviewRequest(language=Language.PYTHON, source=SOURCE, static_findings=(huge,))
+    with pytest.raises(ValueError, match="cannot fit within 400 bytes"):
+        static_findings_block(request)
+
+
+# --- the fixed-text allowance and the worst-case budget (§9.7) ----------------------------------
+
+NONCE = "0123456789abcdef"  # the length of secrets.token_hex(8)
+
+
+def test_the_review_fixed_text_fits_300_bytes() -> None:
+    """Everything outside the findings items and the numbered source, rendered by the renderer.
+
+    Worst case: a 4-digit line count (MAX_SOURCE_LINES may be up to 5,000) and a six-digit
+    omission count (more static findings than any accepted source produces).
+    """
+    prompts = load_prompts("v1")
+    source = SourceText.of("x\n" * 4999 + "x")
+    for findings in ((), worst_review(extra=124_975).static_findings):
+        request = AIReviewRequest(language=Language.PYTHON, source=source, static_findings=findings)
+        user = render_review(prompts, request, "SYSTEM", NONCE).user
+        items = item_lines(static_findings_block(request))
+        source_part = numbered_source(source.lines())
+        fixed = (
+            len(user.encode()) - sum(map(size, items)) - len(source_part.encode())
+        )  # the template text, the four nonce delimiters and the omission line (or "(none)")
+        assert fixed <= TASK_LINE_AND_DELIMITER_BYTES
+    assert "(124975 further findings omitted)" in user and f"<<<SOURCE_{NONCE}" in user
+
+
+def test_the_improvement_fixed_text_fits_300_bytes() -> None:
+    prompts = load_prompts("v1")
+    for request in (worst_improvement(), worst_improvement().model_copy(update={"issues": ()})):
+        user = render_improvement(prompts, request, "SYSTEM", NONCE).user
+        items = item_lines(issues_block(request))
+        fixed = len(user.encode()) - sum(map(size, items)) - len(request.source.text.encode())
+        assert fixed <= TASK_LINE_AND_DELIMITER_BYTES
+
+
+def system_message(operation: Operation) -> str:
+    schema = schema_text(output_schemas()[operation])
+    return render_system(load_prompts("v1"), operation, "Python", schema)
+
+
+def test_a_worst_case_review_stays_within_the_cis_formula_and_fits() -> None:
+    system = system_message("review")
+    request = worst_review(extra=124_975)
+    user = render_review(load_prompts("v1"), request, system, NONCE).user
+    sys_bytes = len(system.encode())
+    bound = sys_bytes + TASK_LINE_AND_DELIMITER_BYTES + 25 * 400 + 12_000 + 500 * 7
+    assert len(system.encode()) + len(user.encode()) <= bound  # the §9.7 terms are true bounds
+    total = estimated_input_tokens(system, user) + REVIEW_MIN_OUTPUT_TOKENS + 512
+    assert total <= review_worst_case_total(sys_bytes, 12_000, 500) <= 16_384
+    assert review_worst_case_total(SYSTEM_PROMPT_MAX_BYTES, 12_000, 500) == 16_208
+    assert actual_output_budget(system, user, num_ctx=16_384, num_predict=8192) >= 4096
+
+
+def test_a_worst_case_improvement_stays_within_the_cis_formula_and_fits() -> None:
+    system = system_message("improve")
+    request = worst_improvement()
+    user = render_improvement(load_prompts("v1"), request, system, NONCE).user
+    sys_bytes = len(system.encode())
+    bound = sys_bytes + TASK_LINE_AND_DELIMITER_BYTES + 20 * 500 + 12_000
+    assert len(system.encode()) + len(user.encode()) <= bound
+    minimum = improve_min_output_tokens(12_000)
+    assert minimum == 5_112
+    total = estimated_input_tokens(system, user) + minimum + 512
+    assert total <= improve_worst_case_total(sys_bytes, 12_000) <= 16_384
+    assert improve_worst_case_total(SYSTEM_PROMPT_MAX_BYTES, 12_000) == 16_058
+    assert actual_output_budget(system, user, num_ctx=16_384, num_predict=8192) >= minimum
 
 
 def test_empty_blocks_say_none() -> None:

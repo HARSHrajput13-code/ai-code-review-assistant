@@ -1,4 +1,4 @@
-Rewrite the code in the SOURCE block to resolve the issues in the ISSUES block. The line numbers in the issues refer to the original source's line numbering.
+Rewrite the code in the SOURCE block to resolve the issues in the ISSUES block. Issue line numbers refer to the original source.
 
 <<<ISSUES_$nonce
 $issues

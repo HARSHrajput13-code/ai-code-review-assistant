@@ -12,7 +12,12 @@ from typing import Any
 import httpx
 import pytest
 
-from ai.budget import CONTEXT_SAFETY_MARGIN_TOKENS, est, improve_min_output_tokens
+from ai.budget import (
+    CONTEXT_SAFETY_MARGIN_TOKENS,
+    REVIEW_MIN_OUTPUT_TOKENS,
+    est,
+    improve_min_output_tokens,
+)
 from ai.ollama.provider import (
     DIGEST_MISMATCH,
     MAX_RESPONSE_BYTES,
@@ -29,6 +34,7 @@ from shared.domain.interfaces import AIImprovementRequest, AIReviewRequest
 from shared.domain.metrics import AICallMetrics, collect_ai_metrics
 from shared.domain.models import SourceText
 from tests.unit.ai.ollama_doubles import IMPROVEMENT, MODEL, REVIEW, Ollama, envelope, provider
+from tests.unit.ai.prompt_limits import worst_improvement, worst_review
 from tests.unit.analysis.fakes import FixedDeadline
 from tests.unit.builders import issue, static_finding
 
@@ -372,3 +378,17 @@ def test_providers_render_independent_nonces() -> None:
         review(server)
     nonces = {b["messages"][1]["content"].split("<<<SOURCE_")[1][:16] for b in server.bodies}
     assert len(nonces) == 3
+
+
+def test_a_worst_case_maximum_review_is_admitted_at_the_defaults() -> None:
+    server = Ollama(chat=[envelope({"summary": "S.", "issues": []})])
+    call(provider(server).review(worst_review(extra=1000), FixedDeadline(300)))
+    (body,) = server.bodies
+    assert body["options"]["num_predict"] >= REVIEW_MIN_OUTPUT_TOKENS  # sent, not refused
+
+
+def test_a_worst_case_maximum_improvement_is_admitted_at_the_defaults() -> None:
+    server = Ollama(chat=[envelope(IMPROVEMENT)])
+    call(provider(server).improve(worst_improvement(), FixedDeadline(300)))
+    (body,) = server.bodies
+    assert body["options"]["num_predict"] >= improve_min_output_tokens(12_000) == 5_112

@@ -13,16 +13,16 @@ IMPROVE_OUTPUT_FACTOR_PERCENT = 115  # IMPROVE_OUTPUT_FACTOR 1.15, in integer fo
 IMPROVE_NOTES_RESERVE_TOKENS = 512
 IMPROVE_MIN_OUTPUT_FLOOR_TOKENS = 1_024
 PROMPT_MAX_STATIC_FINDINGS = 25
-STATIC_FINDING_LINE_BYTES = 400
-STATIC_FINDING_TITLE_CHARS = 100  # §10.2 cuts; with the JSON keys a line can exceed 400 bytes
-STATIC_FINDING_MESSAGE_CHARS = 200  # slightly, which the request-time check (actual bytes) covers
+STATIC_FINDING_LINE_BYTES = 400  # a serialized line plus its separator, enforced by the renderer
+STATIC_FINDING_TITLE_CHARS = 100  # §10.2 character cuts, applied first; the byte limit may cut more
+STATIC_FINDING_MESSAGE_CHARS = 200
 PROMPT_MAX_IMPROVEMENT_ISSUES = 20
-IMPROVEMENT_ISSUE_LINE_BYTES = 500
-IMPROVEMENT_ISSUE_TITLE_CHARS = 100  # §10.2 cuts; likewise a line can slightly exceed 500 bytes
+IMPROVEMENT_ISSUE_LINE_BYTES = 500  # likewise, a serialized line plus its separator
+IMPROVEMENT_ISSUE_TITLE_CHARS = 100  # §10.2 character cuts, applied first
 IMPROVEMENT_RECOMMENDATION_CHARS = 300
 SYSTEM_PROMPT_MAX_BYTES = 9_000
 LINE_PREFIX_BYTES = 7
-TASK_LINE_AND_DELIMITER_BYTES = 300
+TASK_LINE_AND_DELIMITER_BYTES = 300  # all fixed user-message text, the omission line included
 
 
 def est(utf8_bytes: int) -> int:

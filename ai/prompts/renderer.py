@@ -15,10 +15,12 @@ from string import Template
 from typing import Any, Literal
 
 from ai.budget import (
+    IMPROVEMENT_ISSUE_LINE_BYTES,
     IMPROVEMENT_ISSUE_TITLE_CHARS,
     IMPROVEMENT_RECOMMENDATION_CHARS,
     PROMPT_MAX_IMPROVEMENT_ISSUES,
     PROMPT_MAX_STATIC_FINDINGS,
+    STATIC_FINDING_LINE_BYTES,
     STATIC_FINDING_MESSAGE_CHARS,
     STATIC_FINDING_TITLE_CHARS,
 )
@@ -28,6 +30,7 @@ from shared.domain.models import Location
 
 PROMPTS_DIR = Path(__file__).resolve().parent
 MANIFEST = "MANIFEST"
+SEPARATOR = "\n"  # between block lines; counted in each item's byte limit (§9.7: 25 x 400)
 SYSTEM_PLACEHOLDERS = frozenset({"language_display", "output_schema"})
 PLACEHOLDERS: Mapping[str, frozenset[str]] = {  # each template uses exactly these (§10.1)
     "review_system.md": SYSTEM_PLACEHOLDERS,
@@ -119,6 +122,26 @@ def _line(item: Mapping[str, object]) -> str:
     return json.dumps(item, ensure_ascii=True, separators=(",", ":"))
 
 
+def fitted_line(item: dict[str, object], limit: int, first: str, then: str) -> str:
+    """The serialized item whose UTF-8 size plus its separator is at most `limit` bytes (§10.2).
+
+    The character cuts are applied by the caller. Escaping can still make a line too long
+    (`\\uXXXX`, surrogate pairs, `\\"`), so `first` and then `then` are shortened, re-measuring the
+    serialized line each time, to the longest prefix that fits; neither becomes empty. A character
+    serializes to at most 12 bytes, so cutting excess // 12 characters never cuts too much.
+    """
+    fields = {key: str(item[key]) for key in (first, then)}
+    while True:
+        line = _line(item | fields)
+        excess = len(line.encode("utf-8")) + len(SEPARATOR) - limit
+        if excess <= 0:
+            return line
+        key = first if len(fields[first]) > 1 else then
+        if len(fields[key]) <= 1:
+            raise ValueError(f"a prompt line cannot fit within {limit} bytes")
+        fields[key] = fields[key][: -max(1, min(excess // 12, len(fields[key]) - 1))]
+
+
 def _lines(location: Location | None) -> tuple[int | None, int | None]:
     return (location.start_line, location.end_line) if location else (None, None)
 
@@ -133,23 +156,20 @@ def static_findings_block(request: AIReviewRequest) -> str:
     lines = []
     for finding in ordered[:PROMPT_MAX_STATIC_FINDINGS]:
         start, end = _lines(finding.location)
-        lines.append(
-            _line(
-                {
-                    "id": finding.finding_id,
-                    "line": start,
-                    "end_line": end,
-                    "severity": finding.severity,
-                    "category": finding.category,
-                    "rule": finding.rule_key,
-                    "title": finding.title[:STATIC_FINDING_TITLE_CHARS],
-                    "message": finding.summary[:STATIC_FINDING_MESSAGE_CHARS],
-                }
-            )
-        )
+        item: dict[str, object] = {
+            "id": finding.finding_id,
+            "line": start,
+            "end_line": end,
+            "severity": finding.severity,
+            "category": finding.category,
+            "rule": finding.rule_key,
+            "title": finding.title[:STATIC_FINDING_TITLE_CHARS],
+            "message": finding.summary[:STATIC_FINDING_MESSAGE_CHARS],
+        }
+        lines.append(fitted_line(item, STATIC_FINDING_LINE_BYTES, "message", "title"))
     if omitted := omitted_static_findings(request):
         lines.append(f"({omitted} further findings omitted)")
-    return "\n".join(lines) if lines else "(none)"
+    return SEPARATOR.join(lines) if lines else "(none)"
 
 
 def numbered_source(lines: Sequence[str]) -> str:
@@ -173,20 +193,17 @@ def issues_block(request: AIImprovementRequest) -> str:
     lines = []
     for issue in request.issues[:PROMPT_MAX_IMPROVEMENT_ISSUES]:
         start, end = _lines(issue.location)
-        lines.append(
-            _line(
-                {
-                    "id": issue.issue_id,
-                    "severity": issue.severity,
-                    "category": issue.category,
-                    "title": issue.title[:IMPROVEMENT_ISSUE_TITLE_CHARS],
-                    "line": start,
-                    "end_line": end,
-                    "recommendation": issue.recommendation[:IMPROVEMENT_RECOMMENDATION_CHARS],
-                }
-            )
-        )
-    return "\n".join(lines) if lines else "(none)"
+        item: dict[str, object] = {
+            "id": issue.issue_id,
+            "severity": issue.severity,
+            "category": issue.category,
+            "title": issue.title[:IMPROVEMENT_ISSUE_TITLE_CHARS],
+            "line": start,
+            "end_line": end,
+            "recommendation": issue.recommendation[:IMPROVEMENT_RECOMMENDATION_CHARS],
+        }
+        lines.append(fitted_line(item, IMPROVEMENT_ISSUE_LINE_BYTES, "recommendation", "title"))
+    return SEPARATOR.join(lines) if lines else "(none)"
 
 
 def render_improvement(

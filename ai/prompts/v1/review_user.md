@@ -1,4 +1,4 @@
-Review the code in the SOURCE block ($line_count lines). Each source line starts with its line number and "|". The STATIC_FINDINGS block lists findings from deterministic tools.
+Review the code in the SOURCE block ($line_count lines). STATIC_FINDINGS lists tool findings.
 
 <<<STATIC_FINDINGS_$nonce
 $static_findings
