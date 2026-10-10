@@ -2883,14 +2883,15 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | **PR-05 — Minimal frontend vertical slice** (§22.5) | Last M1 implementation task | **COMPLETED.** Merged as PR #13 on 2026-10-09 (merge commit `3e7c2d3`), followed by the corrective PR #14 (merge commit `6a4ff8b`). Both branches were deleted locally and remotely. Execution record in §22.5. |
 | M1 vertical slice (PR-02 to PR-05) | Milestone | **COMPLETED.** PR-02 to PR-05 are completed, with the corrective PRs #7, #11 and #14. PR-05's acceptance passed: a review with the real static tools and the fake AI works through the browser (§22.5). |
 | **PR-06 — Ollama integration** (§22.5) | First M2 implementation task | **COMPLETED.** Merged as PR #17 on 2026-10-10 (merge commit `95aa3a7`). Its prerequisite was met by PR #16, which recorded Ollama `0.40.2` in the environment record. Its branch was deleted locally and remotely. Execution record in §22.5. |
-| **PR-07 — Improvement backend** (§22.5) | M2 implementation task | **NOT STARTED (next).** |
-| PR-08 to PR-10 | M2, M3 and M4 implementation tasks | **NOT STARTED.** PR-08 includes the model evaluation and selection and the prompt v1 freeze. |
-| M2 Ollama, improvement backend, model selection | Milestone | **IN PROGRESS.** PR-06 is completed. PR-07 and PR-08 remain, and M2 closes only with PR-08 (§22.5). No model has been selected, and prompt v1 is still `status: draft`. The model used for PR-06's live smoke tests was a temporary test model, not a selection. |
+| **PR-07 — Improvement backend** (§22.5) | M2 implementation task | **COMPLETED.** Merged as PR #19 on 2026-10-10 (merge commit `7954d61`). Its branch was deleted locally and remotely. Execution record in §22.5. |
+| **PR-08 — Prompts, evaluation and model selection** (§22.5) | Last M2 implementation task | **NOT STARTED (next).** It includes the model evaluation and selection and the prompt v1 freeze. |
+| PR-09, PR-10 | M3 and M4 implementation tasks | **NOT STARTED.** |
+| M2 Ollama, improvement backend, model selection | Milestone | **IN PROGRESS.** PR-06 and PR-07 are completed. PR-08 remains, and M2 closes only with PR-08 (§22.5). No model has been selected, and prompt v1 is still `status: draft`. The model used for the PR-06 and PR-07 live smoke tests was a temporary test model, not a selection. |
 | M3, M4 | Milestones | **NOT STARTED.** |
 
 This table records the **current state** only.
 - **Normative workflow:** §22.3–22.6 (D-96) is what every implementation PR must follow. It is unchanged.
-- **Execution history:** what actually happened during PR-00, PR-01, PR-02, PR-03 (including PR-03's corrective PR #7), PR-04, the observability correction that followed it (PR #11), PR-05 (including PR-05's corrective PR #14) and PR-06 is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
+- **Execution history:** what actually happened during PR-00, PR-01, PR-02, PR-03 (including PR-03's corrective PR #7), PR-04, the observability correction that followed it (PR #11), PR-05 (including PR-05's corrective PR #14), PR-06 and PR-07 is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
 
 ### 22.2 Repository state and the Q7 experiment (historical note)
 
@@ -2968,8 +2969,8 @@ CI pattern: ^(feat|fix|docs|test|build|ci|refactor|perf|style|chore)(\([a-z0-9-]
 | PR-04 | `feat/m1-api-contract` | M1 | Backend API and OpenAPI | API contract passes | **COMPLETED** (PR #9, merge `b18c778`) |
 | PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** | **COMPLETED** (PR #13, merge `3e7c2d3`; corrective PR #14, merge `6a4ff8b`) |
 | PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes | **COMPLETED** (PR #17, merge `95aa3a7`) |
-| PR-07 | `feat/m2-improvement` | M2 | Improvement backend (§22.1 places it in M2; gates C3/C4 need it) | Improvement tests pass | **NOT STARTED** (next) |
-| PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** | NOT STARTED |
+| PR-07 | `feat/m2-improvement` | M2 | Improvement backend (§22.1 places it in M2; gates C3/C4 need it) | Improvement tests pass | **COMPLETED** (PR #19, merge `7954d61`) |
+| PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** | **NOT STARTED** (next) |
 | PR-09 | `feat/m3-ui-completion` | M3 | Complete UI behaviour | BS §39 acceptance demonstrable; **closes M3** | NOT STARTED |
 | PR-10 | `feat/m4-hardening` | M4 | Hardening and V1 freeze documentation | M4 "done when" passes; **closes M4** | NOT STARTED |
 
@@ -3350,7 +3351,7 @@ The Status column is the execution record and mirrors the §22.1 status table. T
     - frontend, unchanged by this PR: `npm run test` 10 passed; `typecheck`, `lint` and `build` clean.
   - **Deferred, with ownership unchanged:**
     - **PR-06:** `seed`, `num_predict`, `prompt_eval_count`, `eval_count`, `token_estimate_exceeded` and `thinking_emitted` need the Ollama provider. The provider interface did not then return them, so they were not logged; none were invented. `attempt` was logged only on a successful AI call. PR-06 added these fields (recorded below).
-    - **PR-07:** the improvement operation runs §14.3 validation. When it returns a result, or rejects its candidate as `IMPROVED_CODE_INVALID`, the operation itself must log stage 11's start and finish. The orchestrator logs stage 11 only when no candidate exists, so each review keeps exactly one stage-11 finish.
+    - **PR-07:** the improvement operation runs §14.3 validation. When it returns a result, or rejects its candidate as `IMPROVED_CODE_INVALID`, the operation itself must log stage 11's start and finish. The orchestrator logs stage 11 only when no candidate exists, so each review keeps exactly one stage-11 finish. PR-07 implemented this (recorded below).
     - **PR-10 (M4):** the M4 logging-privacy deliverable (§22.1) stays M4 scope, including the uvicorn loggers named in §20.3.
   - **Observation:** the exactly-once `review.finished` relies on the in-memory job store never holding its lock across an await, so a sweep and a starting task cannot both act on one PENDING review. A replacement job store would need the same guarantee.
   - **Scope boundary:** the correction implemented **no** API or schema change, and no frontend, Ollama, prompt assets, improvement-generation operation, evaluation, model selection, SQLite or E2E work. It changed no dependency, scoring or review behaviour. It closes no milestone: M1 remained IN PROGRESS until PR-05 (recorded below).
@@ -3516,7 +3517,7 @@ The Status column is the execution record and mirrors the §22.1 status table. T
       - **Completion (D-65, D-90):** only `done_reason` `stop` is accepted. `length` gives `AI_CONTEXT_EXCEEDED`, and any other value or none gives `AI_OUTPUT_INVALID`; neither is retried.
       - **Errors and retry (§9.4, D-41):** every §9.4 row maps to its code with a fixed safe message. Invalid model output is retried at most once, and never with under 20 s left. Each attempt is bounded by the deadline and `OLLAMA_TIMEOUT_SECONDS`.
       - **Readiness (§6.5, §9.5, D-54):** `GET /api/tags`, checking the configured model and, when set, the `OLLAMA_MODEL_DIGEST` prefix.
-      - `improve()` exists only because the provider protocol requires it, and is transport only. No improvement operation exists: `improvement_enabled` stays `false`, and every review still reports improvement `SKIPPED(DISABLED)`.
+      - `improve()` exists only because the provider protocol requires it, and is transport only. No improvement operation then existed: `improvement_enabled` stayed `false`, and every review reported improvement `SKIPPED(DISABLED)`, until PR-07 (recorded below).
     - **Prompt renderer and v1 draft assets (§10.1–10.5):**
       - the four §10.1 templates and a `MANIFEST` with `status: draft` and one SHA-256 line per template, regenerated by `scripts/export_contracts.py`, whose `--check` reports a stale hash;
       - a frozen version whose files differ fails to load, and a draft is refused when `APP_ENV=production`;
@@ -3548,6 +3549,70 @@ The Status column is the execution record and mirrors the §22.1 status table. T
 - **Scope:** the improvement operation (§14); the issue-constrained improvement prompt; acceptance validation, including parseability and signature preservation; the improvement status and error handling (§14.5).
 - **Suggested commits:** `feat(improvement): add improvement operation`, `feat(improvement): add improved-code validation`, `feat(improvement): add improvement failure handling`, `test(improvement): add improvement contract tests`.
 - **Acceptance:** improvement behaves exactly per §14 with the fake and the live provider.
+- **Execution record: COMPLETED** (one PR, #19). M2 remains IN PROGRESS.
+  - **Repository:** `HARSHrajput13-code/ai-code-review-assistant`.
+  - **Pull request:** #19, `feat(m2): implement code improvement generation`, from `feat/m2-improvement` into `main`. **Merged** on 2026-10-10 at 21:01:17 UTC.
+  - **Merge commit:** `7954d61dd3749e46fd12334480a67588f937d941`. Its parents are `f3e74fe` and the PR head `e8e347b610bb09a66d24e625091edbe7650aedb6`, and its tree is identical to the head's.
+  - **Commits** (the suggested commits regrouped: validation and failure handling are split by layer rather than by kind, and each commit carries its own tests):
+    - `e655192` `feat(improvement): add improved-code acceptance rules`
+    - `e9f39df` `feat(improvement): add improvement operation`
+    - `e8e347b` `feat(improvement): enable improvement in the review pipeline`
+  - **CI on the head `e8e347b`:** `commits`, `backend` and `frontend` all **PASS** (run 38085606198, and run 38085718015 after a description edit). `backend`: 1078 passed, 1 skipped; the skipped test is the opt-in live test, which CI never runs (§20.1). `frontend`: 92 passed; `typecheck`, `lint` and `build` clean.
+  - **What PR-07 implemented** (backend only; no API contract, OpenAPI snapshot, generated-types, schema, prompt-asset, MANIFEST, frontend, CI, dependency or lockfile change):
+    - **§14.3 steps 1–4** in `backend/review/improvement.py`, pure and in order, where the first failure ends validation:
+      1. fence stripping, the only rewriting;
+      2. CRLF and CR to LF;
+      3. blank, NUL or unencodable text (`EMPTY_OR_INVALID_TEXT`), and more than `2 × MAX_SOURCE_BYTES` UTF-8 bytes (`TOO_LARGE`, D-76);
+      4. unchanged apart from trailing whitespace and trailing blank lines (`UNCHANGED`).
+
+      A failure raises the existing `ImprovedCodeInvalid(reason)`.
+    - **The improvement operation**, `ImprovementOperation` in `backend/application/improvement.py`, which implements the orchestrator's existing `Improver` protocol:
+      - **Stage 10:** it sends the language, the normalized source and the issues the orchestrator passes (at most the first 20, §14.1) through `provider.improve`, whose request-time budget, timeouts and single retry are PR-06's and unchanged. Provider errors propagate to the existing §14.5 decision table in the orchestrator.
+      - **Stage 11:** steps 1–4, then the adapter's existing steps 5–6 (`validate_generated_code`: the bounded parse, and public-interface preservation only if the original parsed). Success gives `AVAILABLE` with the code and notes. A rejection gives `FAILED(IMPROVED_CODE_INVALID)` and `UNAVAILABLE` with "Improved code could not be validated." An unexpected validation error is also `IMPROVED_CODE_INVALID` (§7.2).
+      - **Logging:** the operation logs stage 11's start and finish, as the observability record required, with the internal reason as a fixed code in the `rejection_reason` field. An unexpected error is logged as its type and frames only. The orchestrator still logs the finish-only stage-11 skip when no candidate exists.
+      - Generated code is never executed, imported, written or logged (§14.6).
+    - **Stage 10 record (§19.1):** the `IMPROVEMENT` stage records now carry the model fields, and the finish carries the provider's observed call metrics, as `AI_ANALYSIS` already did. The orchestrator's control flow is unchanged.
+    - **Composition:** the operation is wired into the orchestrator, and `capabilities.improvement_enabled` now follows `IMPROVEMENT_ENABLED` (§16, default `true`).
+  - **Two behaviour changes, both required by this document:**
+    - **Improvement now runs by default.** `IMPROVEMENT_ENABLED` defaults to `true` (§16), and `.env.example` already sets it to `true`. `false` still gives `SKIPPED(DISABLED)`, a non-failure skip (§14.5 row 1, §5.7). A review now makes up to four provider calls (§7.3).
+    - **A review whose improvement fails validation is `PARTIAL`.** Step 5 (the bounded parse) applies to every candidate, and only step 6 depends on the original parsing (§14.3). A validation failure is `FAILED(IMPROVED_CODE_INVALID)` (§14.5), and any `FAILED` outcome makes a review `PARTIAL` (§5.7). With the fake provider, whose candidate "parses whenever the source parses" (§9.6), a source with a syntax error is therefore `PARTIAL`. Nothing in this document or the Behavioural Specification requires such a review to be `COMPLETED`. §5.7 allows the static tools' `SYNTAX_ERROR` skips, which are non-failure skips.
+  - **Tests:** 1078 passed and 1 skipped (1014 and 1 before PR-07). Each of the three commits passed pytest, Ruff, Ruff format and mypy on its own.
+    - **Coverage:**
+      - each §14.3 step, with its edge cases and its order;
+      - every rejection reason, with its stage-11 record and `rejection_reason`;
+      - unexpected validation errors;
+      - the request carrying exactly the given issues, including through the Ollama adapter over `httpx.MockTransport`;
+      - provider errors, the single retry with the next seed, and no retry with under 20 s left;
+      - no provider call (and no HTTP request) when the improvement's minimum output cannot fit (§9.7), or when the deadline is exhausted;
+      - every §14.5 row, with the real operation for success, a rejected candidate (`PARTIAL` with the score and issues unchanged), invalid AI review output (improvement still runs from the static issues), `AI_CONTEXT_EXCEEDED`, and deadline cancellation;
+      - `IMPROVEMENT_ENABLED=false`, including `capabilities`;
+      - the stage-10 metrics;
+      - log privacy with sentinels in the improved code and notes.
+    - **Changed tests:** five tests that asserted the pre-PR-07 disabled state now assert the enabled default, and their disabled assertions moved into explicit `IMPROVEMENT_ENABLED=false` tests. None was weakened.
+    - **Mutation checks:** seven mutations during the PR (removing each acceptance step, ignoring the adapter's result, the stage-11 start record, the stage-10 metrics) each failed the new tests.
+  - **Acceptance (§22.5):**
+    - **With the fake provider:** the tests above, and the PR-04 acceptance flow with the real Pylint and Bandit returning `AVAILABLE` improved code.
+    - **With the live provider:** the opt-in `live_llm` test was run once on the reference machine (Ollama `0.40.2`) and passed. It now requires the improvement to end in a §14.5 state, consistent with the review status. A separate one-off run through the API, with every record captured at DEBUG:
+      - the review was `COMPLETED`, and the improvement `SUCCEEDED` on attempt 1 and passed stage 11;
+      - none of 17 protected strings appeared in the 60 records: the source and two of its fragments, the summary, the issue titles, the notes, the improved code and each of its non-trivial lines.
+
+      The model was `qwen3:4b-instruct-2507-q4_K_M`, a **temporary smoke-test model only**. This was not an evaluation and not a model selection: no improvement quality was measured (C3/C4 are PR-08) and no candidate compared.
+  - **Final verification**, re-run on `main` at `7954d61`:
+    - **Backend:** **1078 passed**, 1 skipped (the opt-in live test), 0 failed; coverage 99 %, with both new modules at 100 %; Ruff check clean; Ruff format clean (140 files); mypy (strict) clean on 130 files; `export_contracts --check` up to date; the environment check passes all 7 entries, including Ollama `0.40.2`.
+    - **Frontend:** `npm run test` **92 passed** in 9 files; `typecheck`, `lint` and `build` clean.
+    - **Prompt assets:** the MANIFEST is `status: draft` and unchanged; `.env.example` still leaves `OLLAMA_MODEL` unset.
+  - **Notes:**
+    - **Log order:** stage 11 is logged inside stage 10, so a review with a candidate logs `IMPROVEMENT` started, `IMPROVEMENT_VALIDATION` started and finished, then `IMPROVEMENT` finished. Stage 10's duration therefore includes the in-process validation, which takes milliseconds.
+    - **`rejection_reason`:** §14.3 requires the internal reason to be logged but names no field. The field holds only one of the five §14.3 codes, or an exception type name, and is never shown.
+    - **Issue references:** `AIImprovementOutput` has only `improved_code` and `notes` (§11.2), so the output carries no issue references to validate. The issue constraint is applied on the input side, through the prompt and the 20-issue cap.
+    - **The frontend does not yet render `improved_code`**, which the API returns. The improved-code panel is PR-09.
+  - **Left to later PRs, as planned:**
+    - **PR-08:** Dataset v1, `run_eval.py`, the `$ref` compatibility check, the candidate evaluation (including the C3 and C4 improvement gates), model selection, prompt refinement, the prompt v1 freeze, and the `.env.example` model and digest entries.
+    - **PR-09:** the improved-code panel, the diff view, the §14.4 caveat, and the remaining UI.
+    - **PR-10:** SQLite, E2E and the M4 logging-privacy work.
+  - **Scope boundary:** PR-07 implemented no evaluation, model selection, prompt change or freeze, frontend, SQLite or E2E work. No model is selected, and prompt v1 remains a draft.
+  - **Attribution:** none of the three commits, nor the merge commit, nor the PR description carries a Claude attribution.
+  - **Branch:** `feat/m2-improvement` was deleted locally and on GitHub after the merge was verified.
 
 **PR-08: Prompts, evaluation and model selection.**
 - **Scope:**
@@ -4090,13 +4155,13 @@ This audit was performed afresh on the complete document, after the final correc
        - the new §27.2 row, criterion 20 and §27.6, including past-tense pointers in its PR-04 and PR #11 entries.
    - **Status consistency:**
      - In the §22.1 status table, PR-00 to PR-06 each appear once, as COMPLETED. M0 and M1 are COMPLETED, and M2 is IN PROGRESS.
-     - PR-07 is NOT STARTED (next). PR-08 to PR-10 and M3–M4 are NOT STARTED.
+     - At the time of this check, PR-07 was NOT STARTED (next), and PR-08 to PR-10 and M3–M4 were NOT STARTED. Check 16 supersedes this for PR-07 and PR-08.
      - The §22.5 Status column agrees with the table for every planned PR.
-     - No section claims that a model is selected or frozen, that prompt v1 is frozen, that any model evaluation has started, that the improvement operation exists, or that any PR-09 UI behaviour exists. The PR-06 smoke-test model is recorded only as a temporary test model.
+     - At the time of this check, no section claimed that a model is selected or frozen, that prompt v1 is frozen, that any model evaluation had started, that the improvement operation existed, or that any PR-09 UI behaviour exists. The PR-06 smoke-test model is recorded only as a temporary test model.
      - Q7 is still classified only as experimental verification, and no Q7 code was reused.
    - **Acceptance checked against this document.**
      - Every item of the §22.5 PR-06 scope is present in the merged code: the generated schema, structured output, `think: false`, temperature 0, seed, retry, timeouts, `done_reason`, request-time budgeting, readiness with the model and digest checks, the renderer, and the v1 draft assets with a draft MANIFEST.
-     - The v1 improvement templates belong to PR-06's scope because §10.1 makes all four templates part of a version, with a missing file a startup failure. The improvement operation that uses them remains PR-07.
+     - The v1 improvement templates belong to PR-06's scope because §10.1 makes all four templates part of a version, with a missing file a startup failure. The improvement operation that uses them remained PR-07 (check 16).
      - Both §22.5 acceptance conditions are met: the `httpx.MockTransport` contract tests pass in CI, and the opt-in live test passed through the existing pipeline. No model selection was made.
    - **Evidence re-verified before recording:**
      - **On GitHub:** for PRs #16 and #17, the merges, merge times and merge commits; for PR #17, its parents, head, commits, CI runs and description; the protection of `main` (`commits`, `backend` and `frontend` required, strict, enforced for administrators; merge commits only); and the branch deletion.
@@ -4114,6 +4179,52 @@ This audit was performed afresh on the complete document, after the final correc
      No defect remains.
    - **Mechanical checks repeated** on the complete document:
      - 155 headings, counted as in checks 9–14, and 125 distinct `§` references, 0 unresolved. That is one more than check 14, because the PR-06 record cites §27.5;
+     - the §23 register has 96 rows, D-01 to D-96, with no gaps, no duplicates and no unregistered ID; D-96 is registered exactly once, and there is no D-97;
+     - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
+     - the frozen constants are unchanged.
+   - **Byte-identical**, compared with the text before this pass: everything outside §22.1, §22.5 and §27, including the decision register and every constant.
+
+16. **PR-07 completion record** (2026-10-11; status recording only; no design change, no new decision ID, version unchanged at 0.3):
+   - **What changed:**
+     - §22.1:
+       - the status table: the PR-07 row, a PR-08 row (next), the PR-09 and PR-10 row, and the M2 row (still IN PROGRESS);
+       - the execution-history note;
+       - not the M2 milestone row, which gains its status only when the milestone is completed.
+     - In §22.5:
+       - the Status column for PR-07 (COMPLETED) and PR-08 (NOT STARTED (next));
+       - the PR-07 execution record below its unchanged plan;
+       - past-tense pointers in the observability record's PR-07 deferral and in the PR-06 record's improvement statement, which remain historical.
+     - This §27:
+       - the check 15 status lines, the §27.2 PR-06 row and criterion 20 are marked as historical, where they stated PR-07 in the present tense;
+       - the new §27.2 row, criterion 21 and §27.6, including past-tense pointers in its PR-03 and PR #11 entries.
+   - **Status consistency:**
+     - In the §22.1 status table, PR-00 to PR-07 each appear once, as COMPLETED. M0 and M1 are COMPLETED, and M2 is IN PROGRESS.
+     - PR-08 is NOT STARTED (next). PR-09, PR-10 and M3–M4 are NOT STARTED.
+     - The §22.5 Status column agrees with the table for every planned PR.
+     - No section claims that a model is selected or frozen, that prompt v1 is frozen, that any model evaluation has started, or that any PR-09 UI behaviour exists. The PR-06 and PR-07 smoke-test model is recorded only as a temporary test model.
+     - Q7 is still classified only as experimental verification, and no Q7 code was reused.
+   - **Acceptance checked against this document.**
+     - Every item of the §22.5 PR-07 scope is present in the merged code: the improvement operation (§14), the issue-constrained improvement prompt (the PR-06 v1 draft, unchanged), acceptance validation including parseability and signature preservation (§14.3), and the improvement status and error handling (§14.5).
+     - The §22.5 acceptance is met: the fake-provider tests pass in CI, and the opt-in live test passed with the improvement ending in a §14.5 state.
+     - **Default enablement** is required by §16 (`IMPROVEMENT_ENABLED`, default `true`) and matches `.env.example`. `false` remains a non-failure skip (§14.5, §5.7).
+     - **`PARTIAL` for a candidate that fails validation**, including the fake's candidate for a source with a syntax error, follows from §14.3 step 5, §14.5 and §5.7. No section of this document or of the Behavioural Specification requires a syntax-error review to be `COMPLETED` regardless of the improvement outcome.
+   - **Evidence re-verified before recording:**
+     - **On GitHub:** for PR #19, the merge, merge time, merge commit, parents, head, commits, CI runs and description; the protection of `main` (`commits`, `backend` and `frontend` required, strict, enforced for administrators; merge commits only); and the branch deletion.
+     - **On `main` at `7954d61`:**
+       - the backend tests, coverage, lint, type, contract-export and environment-check results;
+       - the frontend tests, typecheck, lint and build;
+       - the MANIFEST status and `.env.example`;
+       - that PR #19 changed no `ai/`, `shared/`, `frontend/`, CI, documentation, dependency or lockfile file.
+   - **Stale-status sweep.** Every match of "PR-07", "PR-08", "NOT STARTED (next)", "improvement_enabled", "SKIPPED(DISABLED)" and "M2 is" in §22 and §27 was classified:
+     - **current:** §22.1, the §22.5 Status column, the PR-07 record, the new §27.2 row, criterion 21, §27.6;
+     - **historical**, marked as such: check 15, the §27.2 PR-06 row, criterion 20, the observability record's PR-07 deferral, the PR-06 record's improvement statement;
+     - **historical by nature:** the PR-03 and PR-04 records' statements bounded by "until PR-07", and earlier checks already marked as historical;
+     - **normative plan:** the §22.1 M2 scope and done-when, the §22.5 plan rows and the PR-07 to PR-10 plans;
+     - **specification:** §14.5 row 1 and §16, which define `IMPROVEMENT_ENABLED`.
+
+     No defect remains.
+   - **Mechanical checks repeated** on the complete document:
+     - 155 headings, counted as in checks 9–15, and 127 distinct `§` references, 0 unresolved. That is two more than check 15, because the PR-07 record cites §14.1 and §14.6;
      - the §23 register has 96 rows, D-01 to D-96, with no gaps, no duplicates and no unregistered ID; D-96 is registered exactly once, and there is no D-97;
      - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
      - the frozen constants are unchanged.
@@ -4140,7 +4251,8 @@ This audit was performed afresh on the complete document, after the final correc
 | **Implementation status (PR-04 record)** | §22.1 status table, §22.5 Status column and PR-04 execution record | Consistent. `main` now also holds the API and OpenAPI contract (merge `b18c778`). PR-00 to PR-04 are COMPLETED, and M0 is COMPLETED. M1 was then IN PROGRESS (PR-05 remained), PR-05 was then NOT STARTED (next), and PR-06 to PR-10 and M2–M4 were NOT STARTED. No frontend vertical slice, Ollama, prompt-asset, improvement-generation, evaluation, model-selection or SQLite work then existed. The row below adds the observability correction; it changes none of these statuses. |
 | **Implementation status (observability correction, PR #11)** | §22.1 status table, §22.5 corrective-PR execution record, §7.2, §18, §19.1, D-55 | Consistent. `main` now also holds the §19.1 review events and safe exception diagnostics (merge `9823880`), recorded as a corrective PR after PR-04, outside the planned sequence. PR-00 to PR-04 remain COMPLETED and M0 COMPLETED. M1 was then IN PROGRESS (PR-05 remained), PR-05 was then NOT STARTED (next), and PR-06 to PR-10 and M2–M4 were NOT STARTED. The PR-06 provider metadata and the PR-07 stage-11 instrumentation are not claimed. The row below supersedes these statuses for PR-05 and M1. |
 | **Implementation status (PR-05 record, PRs #13 and #14)** | §22.1 milestone and status tables, §22.5 Status column and PR-05 execution record, §15.3–§15.7 | Consistent. `main` now also holds the minimal frontend vertical slice (merge `3e7c2d3`) and its partial-indication and lifecycle corrections (merge `6a4ff8b`). PR-00 to PR-05 are COMPLETED, and M0 and M1 are COMPLETED. PR-06 was then NOT STARTED (next), and PR-07 to PR-10 and M2–M4 were NOT STARTED. No Ollama, prompt-asset, improvement-generation, evaluation, model-selection, SQLite or E2E work then existed, and none of the PR-09 UI behaviour is claimed. The row below supersedes these statuses for PR-06, PR-07 and M2. |
-| **Implementation status (PR-06 record, PR #17)** | §22.1 milestone and status tables, §22.5 Status column and PR-06 execution record, §9.2–9.7, §10.1–10.5, §19.1 | Consistent. `main` now also holds the Ollama provider, the prompt renderer and the v1 draft prompts (merge `95aa3a7`), after the Ollama version was recorded (PR #16, merge `3694fbe`). PR-00 to PR-06 are COMPLETED, M0 and M1 are COMPLETED, and M2 is IN PROGRESS. PR-07 is NOT STARTED (next), and PR-08 to PR-10 and M3–M4 are NOT STARTED. No improvement operation, evaluation, model selection, prompt freeze, SQLite or E2E work exists. Prompt v1 is `status: draft`, and the PR-06 smoke-test model is not a selection. |
+| **Implementation status (PR-06 record, PR #17)** | §22.1 milestone and status tables, §22.5 Status column and PR-06 execution record, §9.2–9.7, §10.1–10.5, §19.1 | Consistent. `main` now also holds the Ollama provider, the prompt renderer and the v1 draft prompts (merge `95aa3a7`), after the Ollama version was recorded (PR #16, merge `3694fbe`). PR-00 to PR-06 are COMPLETED, M0 and M1 are COMPLETED, and M2 is IN PROGRESS. PR-07 was then NOT STARTED (next), and PR-08 to PR-10 and M3–M4 were NOT STARTED. No improvement operation then existed, and no evaluation, model selection, prompt freeze, SQLite or E2E work exists. Prompt v1 is `status: draft`, and the PR-06 smoke-test model is not a selection. The row below supersedes these statuses for PR-07 and PR-08. |
+| **Implementation status (PR-07 record, PR #19)** | §22.1 status table, §22.5 Status column and PR-07 execution record, §14.1–14.6, §7.2, §16, §19.1 | Consistent. `main` now also holds the improvement operation and its §14.3 validation (merge `7954d61`). PR-00 to PR-07 are COMPLETED, M0 and M1 are COMPLETED, and M2 is IN PROGRESS. PR-08 is NOT STARTED (next), and PR-09, PR-10 and M3–M4 are NOT STARTED. No evaluation, model selection, prompt freeze, SQLite or E2E work exists. Prompt v1 is `status: draft`, and the smoke-test model is not a selection. |
 
 ### 27.3 Consistency with the parent specifications
 
@@ -4170,7 +4282,8 @@ This audit was performed afresh on the complete document, after the final correc
 | 17 | PR-04's completion is recorded with verifiable evidence (PR #9, merge commit, CI, tests, the acceptance test, validation-order and snapshot verification) and its sequencing limitations; M1 was then IN PROGRESS, not closed; PR-05 was then NOT STARTED (next); PR-06 to PR-10 and M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
 | 18 | The observability correction (GitHub PR #11) is recorded as a corrective PR after PR-04, outside the planned sequence, with verifiable evidence (merge commit, CI, tests, the stage-coverage, correlation and log-privacy verification) and its deferrals to PR-06, PR-07 and PR-10; it changes no status: M1 was then IN PROGRESS, not closed; PR-05 was then NOT STARTED (next); PR-06 to PR-10 and M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
 | 19 | PR-05's completion is recorded with verifiable evidence (PRs #13 and #14, merge commits, CI, tests, the browser acceptance), with the original implementation and the corrective PR kept distinct and the PR-09 and PR-10 boundary stated; M1 is COMPLETED; PR-06 was then NOT STARTED (next); PR-07 to PR-10 and M2–M4 then remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
-| 20 | PR-06's completion is recorded with verifiable evidence (PRs #16 and #17, merge commits, CI, tests, the byte-limit correction, the `httpx.MockTransport` and live acceptance) and its PR-07, PR-08, PR-09 and PR-10 boundary; M2 is IN PROGRESS, not closed; PR-07 is NOT STARTED (next); PR-08 to PR-10 and M3–M4 remain NOT STARTED; no model is selected, the smoke-test model is not a selection, and prompt v1 remains a draft | Met (§22.1, §22.5) |
+| 20 | PR-06's completion is recorded with verifiable evidence (PRs #16 and #17, merge commits, CI, tests, the byte-limit correction, the `httpx.MockTransport` and live acceptance) and its PR-07, PR-08, PR-09 and PR-10 boundary; M2 is IN PROGRESS, not closed; PR-07 was then NOT STARTED (next); PR-08 to PR-10 and M3–M4 then remained NOT STARTED; no model is selected, the smoke-test model is not a selection, and prompt v1 remains a draft | Met (§22.1, §22.5) |
+| 21 | PR-07's completion is recorded with verifiable evidence (PR #19, merge commit, CI, tests, the fake and live acceptance), with its two behaviour changes traced to §16, §14.3, §14.5 and §5.7, and its PR-08, PR-09 and PR-10 boundary; M2 is IN PROGRESS, not closed; PR-08 is NOT STARTED (next); PR-09, PR-10 and M3–M4 remain NOT STARTED; no model is selected, the smoke-test model is not a selection, and prompt v1 remains a draft | Met (§22.1, §22.5) |
 
 ### 27.5 Remaining empirical questions (§24.B)
 
@@ -4191,7 +4304,7 @@ These are settled only by the defined M0 and M2 experiments on the reference har
 
 CIS v0.3, including the D-95 prompt-lifecycle clarification, is consistent with the Behavioural Specification and the Technical Design Specification. Every cross-reference, decision ID, version string, candidate reference and prompt-lifecycle statement was verified as described in §27.1. Neither parent document was modified.
 
-CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0), PR-02 (the M1 static-analysis core), PR-03 (the M1 review domain and pipeline, with its corrective PR #7), PR-04 (the M1 API and OpenAPI contract), the observability correction (PR #11), PR-05 (the minimal frontend vertical slice, with its corrective PR #14) and PR-06 (the M2 Ollama integration) are completed, and M1 is closed; see "Current status" below. M2 is in progress.
+CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0), PR-02 (the M1 static-analysis core), PR-03 (the M1 review domain and pipeline, with its corrective PR #7), PR-04 (the M1 API and OpenAPI contract), the observability correction (PR #11), PR-05 (the minimal frontend vertical slice, with its corrective PR #14), PR-06 (the M2 Ollama integration) and PR-07 (the M2 improvement backend) are completed, and M1 is closed; see "Current status" below. M2 is in progress.
 
 The remaining model-specific and prompt-specific outcomes are controlled empirical results to be obtained through the explicitly defined M0/M2 evaluation process.
 
@@ -4205,21 +4318,23 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
   - The corrective PR #11 then implemented the existing §19.1 review events and safe exception diagnostics (§7.2, §18, D-55). It is recorded after PR-04 in §22.5 and is not a planned PR.
   - The minimal frontend vertical slice followed through PR-05 (PR #13). Its corrective PR #14 added the missing basic partial-result indication, fixed a polling-lifecycle defect, and added the missing regression tests. PR-05's acceptance closed M1 (§22.5).
   - The Ollama version was recorded (PR #16), and the Ollama integration followed through PR-06 (PR #17), whose byte-limit correction was made before the merge. It opened M2 (§22.5).
+  - The improvement operation and its §14.3 validation followed through PR-07 (PR #19), which enabled improvement by default as §16 specifies (§22.5).
 - **Current state:**
   - `main` is protected (§22.3). `commits`, `backend` and `frontend` are required checks. The repository is public.
   - **PR-00 is COMPLETED** and merged (PR #1, merge commit `b72b3eb`, `commits` CI PASS). Its branch was deleted locally and remotely.
   - **PR-01 is COMPLETED** and merged (PR #2, merge commit `30ed3b8`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely.
   - **M0 production implementation is COMPLETED.** M0 itself is the engineering foundation only; review functionality was added in M1 by PR-02 and PR-03.
   - **PR-02 (M1 static-analysis core) is COMPLETED** and merged (PR #4, merge commit `bef8644`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely.
-  - **PR-03 (M1 review domain and pipeline) is COMPLETED** and merged (PR #6, merge commit `ac387cd`), with its corrective PR #7 (merge commit `377a9c1`); `commits`, `backend` and `frontend` CI PASS on both. Both branches were deleted locally and remotely. No improvement-generation operation exists yet (PR-07).
+  - **PR-03 (M1 review domain and pipeline) is COMPLETED** and merged (PR #6, merge commit `ac387cd`), with its corrective PR #7 (merge commit `377a9c1`); `commits`, `backend` and `frontend` CI PASS on both. Both branches were deleted locally and remotely. The improvement-generation operation followed in PR-07.
   - **PR-04 (M1 API and OpenAPI contract) is COMPLETED** and merged (PR #9, merge commit `b18c778`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely. Until PR-06, the application started only with `AI_PROVIDER=fake`; persistence stays disabled until PR-10.
   - **The observability correction (PR #11, after PR-04) is COMPLETED** and merged (merge commit `9823880`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely.
     - It emits `review.accepted`, `review.stage.started`, `review.stage.finished` and `review.finished`.
     - It logs exceptions as type and stack frames only.
-    - The provider metadata fields waited for PR-06, which added them. Stage-11 start and finish events wait for the PR-07 improvement operation.
+    - The provider metadata fields waited for PR-06, which added them. Stage-11 start and finish events waited for the PR-07 improvement operation, which added them.
     - It closes no milestone.
   - **PR-05 (M1 minimal frontend vertical slice) is COMPLETED** and merged (PR #13, merge commit `3e7c2d3`), with its corrective PR #14 (merge commit `6a4ff8b`); `commits`, `backend` and `frontend` CI PASS on both. Both branches were deleted locally and remotely. The PR-09 UI behaviour (improved-code panel, location linking, the full partial, coverage and service-status banners) is not implemented yet.
   - **M1 is COMPLETED.** A review with the real static tools and the fake AI works through the browser.
   - **PR-06 (M2 Ollama integration) is COMPLETED** and merged (PR #17, merge commit `95aa3a7`; `commits`, `backend` and `frontend` CI PASS), after PR #16 recorded Ollama `0.40.2`. Its branch was deleted locally and remotely. It added the Ollama provider, request-time budgeting, the prompt renderer and the v1 draft prompts. The live provider was exercised only with a temporary smoke-test model.
+  - **PR-07 (M2 improvement backend) is COMPLETED** and merged (PR #19, merge commit `7954d61`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely. It added the improvement operation and its §14.3 validation; improvement follows `IMPROVEMENT_ENABLED` (default `true`, §16). The live provider was exercised only with a temporary smoke-test model, and the frontend does not render improved code until PR-09.
   - **M2 is IN PROGRESS.** It closes only with PR-08.
-  - **PR-07 (improvement backend) is NOT STARTED (next).** PR-08 (evaluation, model selection and the prompt v1 freeze), PR-09, PR-10, M3 and M4 are NOT STARTED. No model has been selected or evaluated, and prompt v1 remains `status: draft`.
+  - **PR-08 (prompts, evaluation and model selection) is NOT STARTED (next).** PR-09, PR-10, M3 and M4 are NOT STARTED. No model has been selected or evaluated, and prompt v1 remains `status: draft`.
