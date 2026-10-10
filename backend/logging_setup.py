@@ -38,6 +38,7 @@ ALLOWED_FIELDS = (
     "total_duration",
     "token_estimate_exceeded",
     "thinking_emitted",
+    "rejection_reason",  # a fixed §14.3 reason code, never text from the candidate
     "score",
     "assessed_weight",
     "coverage",

@@ -26,6 +26,7 @@ from analysis.python.adapter import PythonLanguageAdapter, StaticAnalysisOptions
 from analysis.registry import LanguageRegistry
 from backend.api.routes import ApiContext
 from backend.application.deadline import Clock, SystemClock
+from backend.application.improvement import ImprovementOperation
 from backend.application.job_service import ReviewJobService, ReviewRunner
 from backend.application.job_store import InMemoryReviewJobStore
 from backend.application.orchestrator import OrchestratorOptions, ReviewOrchestrator
@@ -99,9 +100,12 @@ def build_context(
         num_predict=settings.ollama_num_predict,
     )
     registry = LanguageRegistry([adapter])
-    # No Improver until PR-07: improvement reports SKIPPED(DISABLED) (§14.5).
+    improver = ImprovementOperation(provider, registry, clock, settings.max_source_bytes)
     orchestrator = ReviewOrchestrator(
-        provider, clock, OrchestratorOptions(improvement_enabled=settings.improvement_enabled)
+        provider,
+        clock,
+        OrchestratorOptions(improvement_enabled=settings.improvement_enabled),
+        improver,
     )
     jobs = ReviewJobService(
         InMemoryReviewJobStore(
@@ -122,7 +126,7 @@ def build_context(
         max_source_bytes=settings.max_source_bytes,
         max_source_lines=settings.max_source_lines,
         review_timeout_seconds=settings.review_timeout_seconds,
-        improvement_enabled=False,  # no improvement operation until PR-07
+        improvement_enabled=settings.improvement_enabled,
         version=project_version(),
         close=close,
     )

@@ -1,16 +1,16 @@
 """ReviewOrchestrator: runs the stages for one submission (CIS §7.2, §5.7, §14.5).
 
 It depends only on interfaces (§3): the language adapter, the AI provider and, for the
-improvement operation, an `Improver`. The improvement operation and its §14.3 validation are
-PR-07; until an `Improver` is supplied, improvement reports as disabled (a non-failure skip) and
-no unvalidated code is ever returned. The orchestrator never touches the job store.
+improvement operation, an `Improver` (`backend.application.improvement`). Without an `Improver`,
+improvement reports as disabled (a non-failure skip) and no unvalidated code is ever returned.
+The orchestrator never touches the job store.
 
 Each stage that runs logs `review.stage.started` and `review.stage.finished` under its §7.2 log
 name; a stage that never starts logs only its finish, with the skip (§19.1). Stage 11
 (IMPROVEMENT_VALIDATION, §14.3) validates the improvement operation's candidate: when the
 operation is skipped or ends without returning one, stage 11 logs a finish-only skip for the same
 cause. A result the operation returns has been through its own validation, which the operation
-(PR-07) logs.
+logs. Both AI stages (5 and 10) carry the model and the provider's observed call metrics.
 """
 
 import asyncio
@@ -89,7 +89,7 @@ class OrchestratorOptions:
 
 
 class Improver(Protocol):
-    """The improvement operation (§14), implemented in PR-07."""
+    """The improvement operation (§14): stage 10's provider call and stage 11's validation."""
 
     async def improve(
         self, submission: ReviewSubmission, issues: tuple[Issue, ...], deadline: Deadline
@@ -337,12 +337,7 @@ class ReviewOrchestrator:
     async def _ai(
         self, submission: ReviewSubmission, findings: tuple[Finding, ...], deadline: Deadline
     ) -> tuple[StageOutcome, AIReviewResult | None]:
-        descriptor = self._provider.descriptor
-        model = {
-            "ai_provider": descriptor.provider,
-            "ai_model": descriptor.model,
-            "prompt_version": descriptor.prompt_version,
-        }
+        model = self._model()
         remaining = deadline.remaining()
         if not _may_start(remaining, self._options.ai_start_min_s):
             skipped = _skipped(SkipReason.DEADLINE_EXCEEDED, ErrorCode.REVIEW_TIMEOUT)
@@ -371,6 +366,15 @@ class ReviewOrchestrator:
         observed = metrics.fields() | {"attempt": result.attempts}
         self._finished("AI_ANALYSIS", outcome, started, **model, **observed)
         return outcome, result
+
+    def _model(self) -> dict[str, object]:
+        """The model fields of an AI stage record (§19.1)."""
+        descriptor = self._provider.descriptor
+        return {
+            "ai_provider": descriptor.provider,
+            "ai_model": descriptor.model,
+            "prompt_version": descriptor.prompt_version,
+        }
 
     async def _improve(
         self,
@@ -429,27 +433,29 @@ class ReviewOrchestrator:
         remaining: float,
         deadline: Deadline,
     ) -> tuple[StageOutcome, ImprovedCode]:
-        since = self._started("IMPROVEMENT")
+        model = self._model()
+        since = self._started("IMPROVEMENT", **model)
         error, not_validated = None, None  # not_validated: the operation returned no candidate
-        try:
-            async with asyncio.timeout(remaining):
-                outcome, improved = await improver.improve(
-                    submission, issues[:PROMPT_MAX_IMPROVEMENT_ISSUES], deadline
-                )
-        except ReviewError as rejected:
-            outcome = _failed(rejected.code)
-            improved = _unavailable(rejected.code, FAILURE_MESSAGES[rejected.code])
-            if rejected.code is not ErrorCode.IMPROVED_CODE_INVALID:  # else validation ran
-                not_validated = _skipped(SkipReason.DEPENDENCY_FAILED, rejected.code)
-        except TimeoutError:  # the deadline cancelled the operation (§7.2)
-            code = ErrorCode.REVIEW_TIMEOUT
-            outcome, improved = _failed(code), _unavailable(code, FAILURE_MESSAGES[code])
-            not_validated = _skipped(SkipReason.DEADLINE_EXCEEDED, code)
-        except Exception as unexpected:
-            code, error = ErrorCode.AI_MODEL_UNAVAILABLE, unexpected
-            outcome, improved = _failed(code), _unavailable(code, FAILURE_MESSAGES[code])
-            not_validated = _skipped(SkipReason.DEPENDENCY_FAILED, code)
-        self._finished("IMPROVEMENT", outcome, since, error)
+        with collect_ai_metrics() as metrics:  # what the provider observed (§19.1)
+            try:
+                async with asyncio.timeout(remaining):
+                    outcome, improved = await improver.improve(
+                        submission, issues[:PROMPT_MAX_IMPROVEMENT_ISSUES], deadline
+                    )
+            except ReviewError as rejected:
+                outcome = _failed(rejected.code)
+                improved = _unavailable(rejected.code, FAILURE_MESSAGES[rejected.code])
+                if rejected.code is not ErrorCode.IMPROVED_CODE_INVALID:  # else validation ran
+                    not_validated = _skipped(SkipReason.DEPENDENCY_FAILED, rejected.code)
+            except TimeoutError:  # the deadline cancelled the operation (§7.2)
+                code = ErrorCode.REVIEW_TIMEOUT
+                outcome, improved = _failed(code), _unavailable(code, FAILURE_MESSAGES[code])
+                not_validated = _skipped(SkipReason.DEADLINE_EXCEEDED, code)
+            except Exception as unexpected:
+                code, error = ErrorCode.AI_MODEL_UNAVAILABLE, unexpected
+                outcome, improved = _failed(code), _unavailable(code, FAILURE_MESSAGES[code])
+                not_validated = _skipped(SkipReason.DEPENDENCY_FAILED, code)
+        self._finished("IMPROVEMENT", outcome, since, error, **model, **metrics.fields())
         if not_validated is not None:
             self._finished("IMPROVEMENT_VALIDATION", not_validated)
         return outcome, improved
