@@ -17,10 +17,18 @@ from uuid import UUID
 
 import pytest
 
-from ai.fake import INVALID_JSON, TIMEOUT, UNAVAILABLE, FakeAIReviewProvider, FakeResponse
+from ai.fake import (
+    CONTEXT_EXCEEDED,
+    INVALID_JSON,
+    TIMEOUT,
+    UNAVAILABLE,
+    FakeAIReviewProvider,
+    FakeResponse,
+)
 from analysis.registry import LanguageRegistry
 from backend.application import orchestrator as orchestrator_module
 from backend.application.events import bound
+from backend.application.improvement import ImprovementOperation
 from backend.application.job_service import ReviewJobService
 from backend.application.job_store import InMemoryReviewJobStore
 from backend.application.orchestrator import OrchestratorOptions, ReviewOrchestrator
@@ -29,9 +37,10 @@ from backend.logging_setup import JsonFormatter
 from backend.review.scoring.policy import ScoringPolicyV1
 from shared.domain.enums import ReviewStatus
 from shared.domain.errors import AIResponseInvalid, ImprovedCodeInvalid
+from shared.domain.interfaces import AIImprovementRequest
 from shared.domain.models import SourceText, SyntaxCheck
+from tests.unit.ai.ollama_doubles import IMPROVEMENT, Ollama, envelope
 from tests.unit.ai.ollama_doubles import MODEL as OLLAMA_MODEL
-from tests.unit.ai.ollama_doubles import Ollama, envelope
 from tests.unit.ai.ollama_doubles import provider as ollama
 from tests.unit.backend.api_client import CODE, KEY, REVIEWS, Api, scenario
 from tests.unit.backend.pipeline_doubles import FAILED, SUBMISSION, FakeImprover, StubAdapter
@@ -91,6 +100,12 @@ FINDINGS = ran("NORMALIZATION", "DEDUPLICATION", "SCORING")
 NO_IMPROVER = [
     (FINISHED, "IMPROVEMENT", "SKIPPED"),
     (FINISHED, "IMPROVEMENT_VALIDATION", "SKIPPED"),
+]
+# The composed improvement operation logs stage 11 inside stage 10 (§14.3, §19.1).
+IMPROVED = [
+    (STARTED, "IMPROVEMENT", "RUNNING"),
+    *ran("IMPROVEMENT_VALIDATION"),
+    (FINISHED, "IMPROVEMENT", "SUCCEEDED"),
 ]
 
 
@@ -208,7 +223,7 @@ def test_a_review_over_http_logs_its_whole_lifecycle_under_its_request(log: Log)
     scenario(body)
     records = log.of(found["review_id"])
     assert trail(records) == [
-        ("review.accepted", None, None), *ANALYSIS, *FINDINGS, *NO_IMPROVER,
+        ("review.accepted", None, None), *ANALYSIS, *FINDINGS, *IMPROVED,
         (DONE, None, "COMPLETED"), ("review.accepted", None, None),
     ]  # fmt: skip
     assert [r["replayed"] for r in records if r["event"] == "review.accepted"] == [False, True]
@@ -218,12 +233,13 @@ def test_a_review_over_http_logs_its_whole_lifecycle_under_its_request(log: Log)
             assert STAGE_FIELDS <= set(record)
             assert isinstance(record["duration_ms"], int) and record["ts"].endswith("Z")
             assert record["level"] == "INFO" and "exception_type" not in record
-    ai = [r for r in records if r.get("stage") == "AI_ANALYSIS"]
-    assert all(MODEL.items() <= r.items() for r in ai) and ai[1]["attempt"] == 1
+    for stage in ("AI_ANALYSIS", "IMPROVEMENT"):  # both AI stages carry the model (§19.1)
+        records_of = [r for r in records if r.get("stage") == stage]
+        assert all(MODEL.items() <= r.items() for r in records_of)
+        assert (records_of[1]["attempt"], records_of[1]["seed"]) == (1, 42)
     assert_each_stage_once(records)
-    for stage in ("IMPROVEMENT", "IMPROVEMENT_VALIDATION"):  # disabled: neither ever starts
-        skipped = log.stage(FINISHED, stage)
-        assert skipped["skip_reason"] == "DISABLED" and "error_code" not in skipped
+    validation = log.stage(FINISHED, "IMPROVEMENT_VALIDATION")
+    assert "ai_model" not in validation and "rejection_reason" not in validation
 
     result, finished = found["result"], next(r for r in records if r["event"] == DONE)
     assert finished["level"] == "INFO" and finished["status"] == found["status"]
@@ -237,8 +253,24 @@ def test_a_review_over_http_logs_its_whole_lifecycle_under_its_request(log: Log)
         "pylint": {"status": "SUCCEEDED"},
         "bandit": {"status": "SUCCEEDED"},
         "ai_analysis": {"status": "SUCCEEDED"},
-        "improvement": {"status": "SKIPPED", "skip_reason": "DISABLED"},
+        "improvement": {"status": "SUCCEEDED"},
     }
+
+
+def test_a_disabled_improvement_logs_finish_only_skips(log: Log) -> None:
+    found: dict[str, Any] = {}
+
+    async def body(api: Api) -> None:
+        created = await api.submit()
+        await api.context.jobs.wait_idle()
+        found.update((await api.client.get(created.headers["Location"])).json())
+
+    scenario(body, improvement_enabled=False)  # IMPROVEMENT_ENABLED=false (§14.5 row 1)
+    records = log.of(found["review_id"])
+    assert trail(records)[-3:] == [*NO_IMPROVER, (DONE, None, "COMPLETED")]
+    for stage in ("IMPROVEMENT", "IMPROVEMENT_VALIDATION"):  # neither ever starts
+        skipped = log.stage(FINISHED, stage)
+        assert skipped["skip_reason"] == "DISABLED" and "error_code" not in skipped
 
 
 def test_durations_come_from_the_clock(log: Log) -> None:
@@ -647,3 +679,106 @@ def test_a_review_that_cannot_fit_the_context_is_partial_with_no_request(log: Lo
     assert (ai["status"], ai["error_code"]) == ("FAILED", "AI_CONTEXT_EXCEEDED")
     assert (ai["attempt"], ai["seed"]) == (1, 42) and "num_predict" not in ai
     assert review.result.analysis.ai_analysis.error_code == "AI_CONTEXT_EXCEEDED"
+
+
+# --- the composed improvement operation (§14, §7.2 stages 10-11) ------------------------------
+
+
+def with_operation(provider: Any, **parts: Any) -> tuple[Any, str]:
+    """A review whose improver is the real ImprovementOperation on the same provider."""
+    clock, adapter = FakeClock(), parts.pop("adapter", StubAdapter())
+    improver = ImprovementOperation(provider, LanguageRegistry([adapter]), clock, 12_000)
+    return reviewed(clock=clock, provider=provider, adapter=adapter, improver=improver, **parts)
+
+
+def candidate(code: str) -> FakeResponse:
+    return FakeResponse(content=json.dumps({"improved_code": code, "notes": [MARK]}))
+
+
+RENAMED = f"import os\n\n\ndef g(items=None):\n    return '{MARK}'\n"
+
+
+def test_the_improvement_stage_record_carries_the_observed_call_metrics(log: Log) -> None:
+    improved = {"improved_code": f"{IMPROVEMENT['improved_code']}# {MARK}\n", "notes": [MARK]}
+    server = Ollama(chat=[envelope(), envelope(improved, prompt_eval_count=700, eval_count=80)])
+    review, review_id = with_operation(ollama(server))
+    assert review.status is ReviewStatus.COMPLETED
+    assert review.result.improved_code.status == "AVAILABLE"
+    assert [b["format"]["required"][0] for b in server.bodies] == ["summary", "improved_code"]
+    started, finished = log.stage(STARTED, "IMPROVEMENT"), log.stage(FINISHED, "IMPROVEMENT")
+    model = {"ai_provider": "ollama", "ai_model": OLLAMA_MODEL, "prompt_version": "v1"}
+    assert model.items() <= started.items() and model.items() <= finished.items()
+    assert (finished["status"], finished["attempt"], finished["seed"]) == ("SUCCEEDED", 1, 42)
+    assert finished["num_predict"] == server.bodies[1]["options"]["num_predict"]
+    assert (finished["prompt_eval_count"], finished["eval_count"]) == (700, 80)
+    assert finished["thinking_emitted"] == 0 and "token_estimate_exceeded" in finished
+    assert log.stage(FINISHED, "AI_ANALYSIS")["prompt_eval_count"] == 900  # its own call
+    assert trail(log.of(review_id))[-5:-1] == [
+        (STARTED, "IMPROVEMENT", "RUNNING"), *ran("IMPROVEMENT_VALIDATION"),
+        (FINISHED, "IMPROVEMENT", "SUCCEEDED"),
+    ]  # fmt: skip
+    assert MARK not in log.stream.getvalue()  # neither the improved code nor its notes
+
+
+def test_a_rejected_candidate_is_partial_with_the_score_unchanged(log: Log) -> None:
+    accepted, _ = with_operation(FakeAIReviewProvider())
+    review, review_id = with_operation(FakeAIReviewProvider(improve_script=[candidate(RENAMED)]))
+    assert (accepted.status, review.status) == (ReviewStatus.COMPLETED, ReviewStatus.PARTIAL)
+    assert review.result.score == accepted.result.score  # §20.3: score unchanged
+    assert review.result.issues == accepted.result.issues
+    improvement = review.result.analysis.improvement
+    assert (improvement.status, improvement.error_code) == ("FAILED", "IMPROVED_CODE_INVALID")
+    assert review.result.improved_code.model_dump() == {
+        "status": "UNAVAILABLE", "code": None, "notes": (),
+        "failure_code": "IMPROVED_CODE_INVALID", "message": "Improved code could not be validated.",
+    }  # fmt: skip
+    records = log.of(review_id)
+    assert_each_stage_once(records)  # stage 11 logged once, by the operation
+    assert trail(records)[-5:-1] == [
+        (STARTED, "IMPROVEMENT", "RUNNING"), (STARTED, "IMPROVEMENT_VALIDATION", "RUNNING"),
+        (FINISHED, "IMPROVEMENT_VALIDATION", "FAILED"), (FINISHED, "IMPROVEMENT", "FAILED"),
+    ]  # fmt: skip
+    validation = [r for r in records if r.get("stage") == "IMPROVEMENT_VALIDATION"][1]
+    assert validation["rejection_reason"] == "INTERFACE_CHANGED"
+    assert MARK not in log.stream.getvalue()
+
+
+def test_invalid_ai_review_output_still_improves_from_the_static_issues(log: Log) -> None:
+    provider = FakeAIReviewProvider(review_script=[INVALID_JSON, INVALID_JSON])
+    review, _ = with_operation(provider)
+    assert review.status is ReviewStatus.PARTIAL  # the AI review failed, not the improvement
+    assert review.result.analysis.ai_analysis.error_code == "AI_OUTPUT_INVALID"
+    assert review.result.analysis.improvement.status == "SUCCEEDED"
+    assert review.result.improved_code.status == "AVAILABLE"
+    (call,) = [c for c in provider.calls if c.operation == "improve"]
+    assert isinstance(call.request, AIImprovementRequest) and call.request.issues
+    assert {i.provenance for i in call.request.issues} == {"STATIC"}
+
+
+def test_an_improvement_that_cannot_fit_leaves_the_review_unchanged(log: Log) -> None:
+    accepted, _ = with_operation(FakeAIReviewProvider())
+    review, review_id = with_operation(FakeAIReviewProvider(improve_script=[CONTEXT_EXCEEDED]))
+    assert review.status is ReviewStatus.PARTIAL and review.result.score == accepted.result.score
+    improvement = review.result.analysis.improvement
+    assert (improvement.status, improvement.error_code) == ("FAILED", "AI_CONTEXT_EXCEEDED")
+    improved = review.result.improved_code
+    assert (improved.status, improved.failure_code) == ("UNAVAILABLE", "AI_CONTEXT_EXCEEDED")
+    validation = [r for r in log.of(review_id) if r.get("stage") == "IMPROVEMENT_VALIDATION"]
+    assert [(r["event"], r["skip_reason"]) for r in validation] == [(FINISHED, "DEPENDENCY_FAILED")]
+
+
+def test_the_deadline_cancels_the_running_operation(log: Log) -> None:
+    clock = FakeClock()
+    provider = Advancing(  # 1 ms left when the improvement starts; its call would take 5 s
+        clock=clock, seconds=299.999, improve_script=[FakeResponse(delay_s=5)]
+    )
+    improver = ImprovementOperation(provider, LanguageRegistry([StubAdapter()]), clock, 12_000)
+    review, review_id = reviewed(
+        clock=clock, provider=provider, improver=improver,
+        options=OrchestratorOptions(improvement_start_min_s=0),
+    )  # fmt: skip
+    improvement = review.result.analysis.improvement
+    assert (improvement.status, improvement.error_code) == ("FAILED", "REVIEW_TIMEOUT")
+    assert review.status is ReviewStatus.PARTIAL
+    validation = [r for r in log.of(review_id) if r.get("stage") == "IMPROVEMENT_VALIDATION"]
+    assert [r["event"] for r in validation] == [FINISHED]  # never started: no candidate

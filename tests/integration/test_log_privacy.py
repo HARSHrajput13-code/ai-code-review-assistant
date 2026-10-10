@@ -19,6 +19,7 @@ from analysis.process import ProcessResult, SafeProcessRunner
 from analysis.python.adapter import PythonLanguageAdapter, StaticAnalysisOptions
 from analysis.registry import LanguageRegistry
 from backend.application.deadline import MonotonicDeadline
+from backend.application.improvement import ImprovementOperation
 from backend.application.job_service import ReviewJobService, fingerprint
 from backend.application.job_store import InMemoryReviewJobStore
 from backend.application.orchestrator import OrchestratorOptions, ReviewOrchestrator
@@ -272,9 +273,8 @@ def test_a_full_review_with_real_tools_logs_no_protected_data(
         review_script=[FakeResponse(AI_RESPONSE)], improve_script=[FakeResponse(IMPROVED)]
     )
     adapter = PythonLanguageAdapter(SafeProcessRunner(dict(os.environ)), StaticAnalysisOptions())
-    orchestrator = ReviewOrchestrator(
-        provider, clock, OrchestratorOptions(), FakeImprover(provider=provider)
-    )
+    improver = ImprovementOperation(provider, LanguageRegistry([adapter]), clock, 12_000)
+    orchestrator = ReviewOrchestrator(provider, clock, OrchestratorOptions(), improver)
 
     async def body() -> Any:
         service = jobs(clock, orchestrator, adapter)
@@ -291,3 +291,20 @@ def test_a_full_review_with_real_tools_logs_no_protected_data(
     assert_private(caplog, expect_records=False)
     out, err = capfd.readouterr()
     assert MARK not in out and MARK not in err
+
+
+def test_a_rejected_improvement_logs_its_reason_but_no_code(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    renamed = json.dumps(
+        {"improved_code": f"def {CODE_SENTINEL}():\n    pass\n", "notes": [AI_SENTINEL]}
+    )
+    clock = FakeClock()
+    provider = FakeAIReviewProvider(improve_script=[FakeResponse(renamed)])
+    adapter = StubAdapter()
+    improver = ImprovementOperation(provider, LanguageRegistry([adapter]), clock, 12_000)
+    outcome = orchestrate(adapter=adapter, provider=provider, improver=improver)
+    assert outcome.result.analysis.improvement.error_code == "IMPROVED_CODE_INVALID"
+    reasons = [getattr(r, "rejection_reason", None) for r in caplog.records]
+    assert "INTERFACE_CHANGED" in reasons  # the failure path really logged
+    assert_private(caplog, expect_records=True)

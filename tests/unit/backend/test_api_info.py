@@ -30,7 +30,8 @@ class BrokenProvider(FakeAIReviewProvider):
         raise RuntimeError(r"C:\secret\path\ollama.py exploded with SENTINEL_7F91")
 
 
-def test_capabilities_come_from_configuration() -> None:
+@pytest.mark.parametrize("enabled", [True, False])
+def test_capabilities_come_from_configuration(enabled: bool) -> None:
     async def body(api: Api) -> None:
         response = await api.client.get("/api/v1/capabilities")
         assert response.status_code == 200
@@ -38,10 +39,16 @@ def test_capabilities_come_from_configuration() -> None:
             "languages": [{"id": "python", "display_name": "Python", "monaco_language": "python"}],
             "limits": {"max_source_bytes": 4000, "max_source_lines": 200},
             "review_timeout_seconds": 120,
-            "improvement_enabled": False,  # no improvement operation before PR-07
+            "improvement_enabled": enabled,  # IMPROVEMENT_ENABLED (§16)
         }
 
-    run(body, max_source_bytes=4000, max_source_lines=200, review_timeout_seconds=120)
+    run(
+        body,
+        max_source_bytes=4000,
+        max_source_lines=200,
+        review_timeout_seconds=120,
+        improvement_enabled=enabled,
+    )
 
 
 def test_health_is_liveness_only() -> None:

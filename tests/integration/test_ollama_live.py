@@ -3,8 +3,9 @@
     RUN_LIVE_LLM=1 OLLAMA_MODEL=<installed tag> uv run pytest -m live_llm
 
 It checks only that the provider works through the unchanged API and pipeline with a real local
-model. It is not an evaluation: it measures no quality, compares no models and selects nothing
-(model selection is the PR-08 procedure, §20.9).
+model, and that the improvement operation ends in a §14.5 state. It is not an evaluation: it
+measures no quality, compares no models and selects nothing (model selection is the PR-08
+procedure, §20.9).
 """
 
 import asyncio
@@ -70,11 +71,26 @@ def run_review() -> tuple[dict[str, Any], dict[str, Any]]:
 def test_a_review_runs_through_the_pipeline_with_the_local_model() -> None:
     ready, done = run_review()
     assert ready["components"]["ai_provider"]["available"] is True
-    assert done["status"] == "COMPLETED", done.get("failure") or done["result"]["analysis"]
+    assert done["status"] in ("COMPLETED", "PARTIAL"), done.get("failure")
     result = done["result"]
-    assert result["analysis"]["ai_analysis"]["status"] == "SUCCEEDED"
+    assert result["analysis"]["ai_analysis"]["status"] == "SUCCEEDED", result["analysis"]
     metadata = result["metadata"]
     assert (metadata["ai_provider"], metadata["ai_model"], metadata["prompt_version"]) == (
         "ollama", os.environ["OLLAMA_MODEL"], "v1",
     )  # fmt: skip
     assert result["summary"]["text"]
+    # The improvement ran and ended in a §14.5 state; its quality is not judged here (PR-08 C4).
+    improvement, improved = result["analysis"]["improvement"], result["improved_code"]
+    if improvement["status"] == "SUCCEEDED":
+        assert done["status"] == "COMPLETED"
+        assert improved["status"] == "AVAILABLE" and improved["code"].strip()
+        assert improved["code"] != SOURCE
+    else:
+        assert improvement["status"] == "FAILED", improvement
+        assert done["status"] == "PARTIAL"
+        assert improved["status"] == "UNAVAILABLE"
+        assert improved["failure_code"] == improvement["error_code"]
+        assert improved["failure_code"] in (
+            "IMPROVED_CODE_INVALID", "AI_OUTPUT_INVALID", "AI_CONTEXT_EXCEEDED",
+            "AI_MODEL_UNAVAILABLE", "REVIEW_TIMEOUT",
+        )  # fmt: skip

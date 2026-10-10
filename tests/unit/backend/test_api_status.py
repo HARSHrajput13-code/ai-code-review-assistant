@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from ai.fake import TIMEOUT, UNAVAILABLE, FakeAIReviewProvider
-from tests.unit.backend.api_client import REVIEWS, Api, error_of, scenario
+from tests.unit.backend.api_client import CODE, REVIEWS, Api, error_of, scenario
 from tests.unit.backend.pipeline_doubles import FAILED, GatedRunner, StubAdapter
 
 RESULT_KEYS = {
@@ -34,7 +34,7 @@ def test_completed_review_maps_the_whole_result() -> None:
         result = resource["result"]
         assert set(result) == RESULT_KEYS
         assert result["capabilities"] == {
-            "static_analysis": True, "ai_analysis": True, "improved_code": False,
+            "static_analysis": True, "ai_analysis": True, "improved_code": True,
         }  # fmt: skip
         assert set(result["severity_counts"]) == {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
         assert sum(result["severity_counts"].values()) == result["total_issue_count"]
@@ -45,13 +45,29 @@ def test_completed_review_maps_the_whole_result() -> None:
         assert set(issue["sources"][0]) == {"origin", "rule_key"}  # no internal finding IDs
         assert len(result["score"]["categories"]) == 6
         assert result["improved_code"] == {
-            "status": "UNAVAILABLE", "code": None, "notes": [], "failure_code": None,
-            "message": "Improved-code generation is disabled.",
+            "status": "AVAILABLE", "code": "# Reviewed\n" + CODE, "notes": [],
+            "failure_code": None, "message": None,
         }  # fmt: skip
+        assert result["analysis"]["improvement"]["status"] == "SUCCEEDED"
         assert result["metadata"]["ai_provider"] == "fake"
         assert "started_at" not in result["metadata"]
 
     scenario(body)
+
+
+def test_disabled_improvement_is_a_non_failure_skip() -> None:
+    async def body(api: Api) -> None:
+        resource = await finished(api)
+        assert resource["status"] == "COMPLETED"
+        result = resource["result"]
+        assert result["capabilities"]["improved_code"] is False
+        assert result["analysis"]["improvement"]["skip_reason"] == "DISABLED"
+        assert result["improved_code"] == {
+            "status": "UNAVAILABLE", "code": None, "notes": [], "failure_code": None,
+            "message": "Improved-code generation is disabled.",
+        }  # fmt: skip
+
+    scenario(body, improvement_enabled=False)
 
 
 def test_pending_and_running() -> None:

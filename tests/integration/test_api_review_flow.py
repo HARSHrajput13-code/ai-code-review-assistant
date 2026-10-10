@@ -58,7 +58,13 @@ def test_a_review_runs_through_the_api_with_the_real_tools_and_the_fake_ai() -> 
     )  # fmt: skip
     assert result["score"]["overall"] == 70 and result["coverage"]["complete"]
     assert result["capabilities"] == {
-        "static_analysis": True, "ai_analysis": True, "improved_code": False,
+        "static_analysis": True, "ai_analysis": True, "improved_code": True,
+    }  # fmt: skip
+    # The fake's improvement (§9.6) passed §14.3 with the real bounded parse and interface check.
+    assert result["analysis"]["improvement"]["status"] == "SUCCEEDED"
+    assert result["improved_code"] == {
+        "status": "AVAILABLE", "code": "# Reviewed\n" + SOURCE, "notes": [],
+        "failure_code": None, "message": None,
     }  # fmt: skip
     assert result["metadata"]["ai_provider"] == "fake"
 
@@ -66,6 +72,11 @@ def test_a_review_runs_through_the_api_with_the_real_tools_and_the_fake_ai() -> 
 def test_a_syntax_error_review_reports_static_analysis_as_usable() -> None:
     _, _, done = review("def broken(:\n    pass\n")
     result = done["result"]
-    assert done["status"] == "COMPLETED" and result["score"]["overall"] <= 20
+    assert result["score"]["overall"] <= 20
     assert result["capabilities"]["static_analysis"] is True  # §5.6: an invalid syntax is usable
     assert result["issues"][0]["sources"][0]["rule_key"] == "python-parser:syntax-error"
+    # The fake's improvement keeps the syntax error, so the §14.3 parse rejects it (§14.5).
+    assert done["status"] == "PARTIAL"
+    improvement = result["analysis"]["improvement"]
+    assert (improvement["status"], improvement["error_code"]) == ("FAILED", "IMPROVED_CODE_INVALID")
+    assert result["improved_code"]["status"] == "UNAVAILABLE"
