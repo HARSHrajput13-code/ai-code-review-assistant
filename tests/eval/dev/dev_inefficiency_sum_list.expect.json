@@ -1,0 +1,11 @@
+{
+  "case_id": "dev_inefficiency_sum_list",
+  "expected_categories": [
+    "PERFORMANCE"
+  ],
+  "kind": "inefficiency",
+  "min_severity": "LOW",
+  "planted_lines": [
+    5
+  ]
+}

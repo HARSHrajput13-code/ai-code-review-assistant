@@ -36,6 +36,7 @@ ALLOWED_FIELDS = (
     "prompt_eval_count",
     "eval_count",
     "total_duration",
+    "input_token_estimate",
     "token_estimate_exceeded",
     "thinking_emitted",
     "rejection_reason",  # a fixed §14.3 reason code, never text from the candidate

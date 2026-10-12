@@ -1,0 +1,42 @@
+{
+  "candidate": "qwen3:4b-instruct-2507-q4_K_M",
+  "model_tag": "qwen3:4b-instruct-2507-q4_K_M",
+  "model_digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+  "download_size_bytes": 2497293803,
+  "family": "qwen3",
+  "parameter_size": "4.0B",
+  "quantization": "Q4_K_M",
+  "licence": "Apache-2.0",
+  "native_context_length": 262144,
+  "criteria": {
+    "1_runs_locally": {
+      "passed": true,
+      "tag": "qwen3:4b-instruct-2507-q4_K_M",
+      "digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0"
+    },
+    "2_appropriate": {
+      "passed": true,
+      "family": "qwen3"
+    },
+    "3_download_size_le_5_5_gb": {
+      "passed": true,
+      "bytes": 2497293803
+    },
+    "4_structured_output": {
+      "passed": true,
+      "smoke_case": "dev_security_hardcoded_password",
+      "smoke_result": "PASS",
+      "native_context_length": 262144,
+      "ref_check": {
+        "schema_has_defs": true,
+        "passed": true
+      }
+    },
+    "5_licence": {
+      "passed": true,
+      "licence": "Apache-2.0"
+    }
+  },
+  "eligible": true,
+  "recorded_at": "2026-10-10T21:46:38.077802+00:00"
+}

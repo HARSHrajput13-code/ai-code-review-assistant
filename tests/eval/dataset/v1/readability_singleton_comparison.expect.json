@@ -1,0 +1,12 @@
+{
+  "case_id": "readability_singleton_comparison",
+  "expected_categories": [
+    "READABILITY"
+  ],
+  "kind": "readability",
+  "min_severity": "LOW",
+  "planted_lines": [
+    6,
+    8
+  ]
+}

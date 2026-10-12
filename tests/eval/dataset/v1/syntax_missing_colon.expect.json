@@ -1,0 +1,11 @@
+{
+  "case_id": "syntax_missing_colon",
+  "expected_categories": [
+    "CORRECTNESS"
+  ],
+  "kind": "syntax",
+  "min_severity": "HIGH",
+  "planted_lines": [
+    4
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "case_id": "security_sql_injection",
+  "expected_categories": [
+    "SECURITY"
+  ],
+  "kind": "security",
+  "min_severity": "MEDIUM",
+  "planted_lines": [
+    8
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "case_id": "dev_syntax_unterminated_string",
+  "expected_categories": [
+    "CORRECTNESS"
+  ],
+  "kind": "syntax",
+  "min_severity": "HIGH",
+  "planted_lines": [
+    5
+  ]
+}

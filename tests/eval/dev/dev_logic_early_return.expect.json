@@ -1,0 +1,11 @@
+{
+  "case_id": "dev_logic_early_return",
+  "expected_categories": [
+    "CORRECTNESS"
+  ],
+  "kind": "logic",
+  "min_severity": "MEDIUM",
+  "planted_lines": [
+    7
+  ]
+}

@@ -19,6 +19,7 @@ class AICallMetrics:
     prompt_eval_count: int | None = None
     eval_count: int | None = None
     total_duration: int | None = None  # nanoseconds, as Ollama reports it
+    input_token_estimate: int | None = None  # est(input) of the call: the A17 ratio's denominator
     token_estimate_exceeded: bool | None = None
     thinking_emitted: int | None = None  # calls whose response carried message.thinking
 

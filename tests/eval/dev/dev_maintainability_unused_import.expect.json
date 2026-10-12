@@ -1,0 +1,11 @@
+{
+  "case_id": "dev_maintainability_unused_import",
+  "expected_categories": [
+    "MAINTAINABILITY"
+  ],
+  "kind": "maintainability",
+  "min_severity": "LOW",
+  "planted_lines": [
+    3
+  ]
+}

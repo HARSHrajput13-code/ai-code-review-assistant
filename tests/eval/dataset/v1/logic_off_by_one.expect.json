@@ -1,0 +1,11 @@
+{
+  "case_id": "logic_off_by_one",
+  "expected_categories": [
+    "CORRECTNESS"
+  ],
+  "kind": "logic",
+  "min_severity": "MEDIUM",
+  "planted_lines": [
+    9
+  ]
+}
