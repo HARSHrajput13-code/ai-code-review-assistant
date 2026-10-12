@@ -74,6 +74,7 @@ The changes are integrated throughout the body. These tables are only an index.
 | **D-94** | Final pass: three-seed stability semantics. The full gate verdict must be PASS independently for each of seeds 42, 43 and 44. No averaging. | §20.8 |
 | **D-95** | Clarification: a controlled, recorded and bounded prompt-refinement lifecycle (frozen development set only; immutable revision records; an explicit stopping point; at most 3 final-gate attempts on distinct frozen revisions). | §10.1, §20.6, §20.9, §20.10, §24.B |
 | **D-96** | Implementation governance: bounded pull requests from dedicated task branches into protected `main`; Conventional Commits 1.0.0; the PR plan PR-00 to PR-10 mapped to M0–M4. The Q7 experiment is never production source. | §4, §22, §24.A |
+| **D-97** | Stage E diagnostic phase after comparison round 1 ended with `MODEL_SELECTION_FAILED`: a documentation-only exception during the PR-08 halt, and two bounded, separately authorized diagnostics (D1 on the development set, D2 on synthetic inputs). No gate, timeout, dataset, prompt, model, application configuration or official baseline changes. | §20.6, §20.9, §22.1, §22.5 |
 
 **v0.2 changes (D-40 to D-66), still in force**
 
@@ -2511,7 +2512,7 @@ The `size` cases exist to expose context overflow, timeouts, output truncation, 
   - before selection completes, every candidate is re-evaluated on v2;
   - after selection, the frozen model must pass on v2 before v2 replaces v1.
 
-**Development set.** `tests/eval/dev/` holds at least one case per semantic kind. It is disjoint from v1, by file and by hash, and a test enforces this. It is used **only** for prompt refinement (§10.1). It is never a gate, and is never used to rank models. It has its own `DEV_MANIFEST` (`dataset: dev-v1`, `status: frozen`, SHA-256 per file). It is frozen **before prompt refinement begins**, and stays unchanged throughout a comparison round (D-95). Any change to it is recorded as `dev-v2`. Changing it never moves a case across the boundary with Dataset v1.
+**Development set.** `tests/eval/dev/` holds at least one case per semantic kind. It is disjoint from v1, by file and by hash, and a test enforces this. It is used **only** for prompt refinement (§10.1), and for the one-time D1 output-format diagnosis authorized by D-97 (§20.9), which is not refinement and produces no revision. It is never a gate, and is never used to rank models. It has its own `DEV_MANIFEST` (`dataset: dev-v1`, `status: frozen`, SHA-256 per file). It is frozen **before prompt refinement begins**, and stays unchanged throughout a comparison round (D-95). Any change to it is recorded as `dev-v2`. Changing it never moves a case across the boundary with Dataset v1.
 
 ### 20.7 Evaluation protocol and seeds (D-73)
 
@@ -2592,7 +2593,7 @@ C1 ≥ 95 %     C2 = 100 %     C3 = 100 %     C4 ≥ 90 %     AGG ≥ 80 %     T
 
 **Estimator calibration (A17).** If the maximum token-estimate ratio exceeds 1.0 for any case, `BYTES_PER_TOKEN_ESTIMATE` is not conservative for that model. The finding is recorded, and the constant or the source defaults are corrected by a **CIS amendment** (a new decision ID) **before** freeze. The startup check and the boundary cases are then re-run. It is never tweaked ad hoc.
 
-### 20.9 Model selection (D-68 to D-71, D-83, D-84, D-91, D-93, D-94)
+### 20.9 Model selection (D-68 to D-71, D-83, D-84, D-91, D-93, D-94, D-97)
 
 **Objective (D-68), verbatim:**
 
@@ -2690,6 +2691,144 @@ The top-ranked candidate is the **provisional winner**. It must pass **stability
   - **(a) expand the candidate set**: add one or more candidates that satisfy Stage A. This includes the pre-documented 7B Q5_K_M fallback, available only if the 7B Q4_K_M candidate failed quality gates while passing T0 and P1–P6.
   - **(b) a separately approved evaluation or configuration change**: for example, improving the common draft prompt **on the development set** and running a new comparison round for *all* candidates against a new comparison snapshot, or changing a configuration baseline. A configuration change requires re-running startup validation and the boundary-size cases.
 - After an approved amendment, Stages A–E run again **in full**. The failed round's reports are kept unchanged alongside the new round's.
+
+**Stage E diagnostic phase (D-97).** After comparison round 1 ended with `MODEL_SELECTION_FAILED` (§22.5, PR-08), a bounded diagnostic phase may run. Its only purpose is to provide evidence for deciding whether to propose a Stage E (a) or (b) amendment. It is not itself a Stage E next step.
+
+- **Limits.** The phase selects, ranks, freezes or rejects no candidate and no prompt. It is not a comparison run, and its results are never gate results or selection or ranking evidence. Its results are never copied into a prompt, a dataset or an expectation. It changes no configuration baseline.
+- **Diagnostics.** Exactly two: **D1**, an output-format diagnosis on the development set; and **D2**, a runtime-performance diagnosis on synthetic inputs. Anything outside the rules below is not authorized. The evidence preservation already performed (D0) is a completed task that the project owner authorized separately, recorded in §22.5. It is not part of this phase, this decision did not authorize it, and it is not repeated.
+- **Authorization.** This decision does not start either diagnostic. Each runs only after the project owner separately authorizes it, and D2 also requires a benchmark plan approved by the project owner. Each runs **once**; a repeat needs a new owner approval.
+- **During the halt**, the only permitted repository activity is the documentation exception in the §22.5 PR-08 acceptance.
+
+**Category A: never changed in either diagnostic.**
+- the application's backend configuration, including every `OLLAMA_*` application configuration key;
+- the per-request model parameters and options (§9.3);
+- the §20.7 controlled variables, including `REVIEW_TIMEOUT_SECONDS` and `OLLAMA_TIMEOUT_SECONDS`;
+- the prompt assets and `MANIFEST`, the output schemas, Dataset v1 and `dev-v1`, every gate and threshold, and every round-1 record;
+- the installed models (no download or removal) and the Ollama version (no upgrade).
+
+**Category B: temporary Ollama server runtime settings, permitted only in D2.** These settings are read by the Ollama server process, not by the application. A setting may differ from the recorded pre-D2 state only in a D2 variant, and only if:
+1. it is named, with its value, in the approved D2 benchmark plan before D2 starts;
+2. it is listed as supported by the installed Ollama version (its own help output or startup configuration);
+3. its effect is shown in the server's model-load log entries;
+4. the pre-D2 state of every server setting is recorded outside the repository before any change;
+5. it is applied identically to every model, in the order the plan fixes;
+6. it is fully restored afterwards, and restoration is verified.
+
+Never permitted under D-97: debug logging; request or response body logging; any setting that changes network exposure, origins, storage location, remote models, proxies, device selection, scheduling or concurrency, context length, keep-alive or automatic updating. Testing a setting in D2 is not adopting it. Adoption requires a separately approved Stage E (b) amendment with a new decision ID, including the startup validation and boundary-size re-runs that Stage E requires.
+
+**B0 (the D2 control configuration).** B0 is the diagnostic control configuration for D2: the recorded pre-D2 Ollama server settings, run with the plan's launch method and the unchanged application configuration. It exists only so that D2 variants have a comparison point. It does not change, replace, redefine or adopt the official evaluation baseline, which is the §21.1 runtime baselines, the §20.7 controlled variables and the environment record. Verifying B0 against round 1 (Comparison A) tests equivalence only. Every temporary setting tested in D2 stays diagnostic-only and lapses when D2 restoration completes. Making it part of the official baseline requires a separately approved Stage E (b) amendment with a new decision ID.
+
+**D2 launch method.** The approved D2 benchmark plan fixes the launch method. If it uses a separately launched `ollama serve` process:
+- (a) the original Ollama application and server process are not stopped until the project owner has separately authorized the D2 procedure;
+- (b) B0 uses the recorded pre-D2 server settings, with no Category B change;
+- (c) B0 passes Comparison A before any variant runs;
+- (d) B0 and every variant use the same launch method, the same application configuration and the same per-request parameters;
+- (e) settings are passed only to the launched process. Persistent Windows environment variables are not created, changed or removed, and are checked to be unchanged before and after D2;
+- (f) that process's log output is written to a file outside the repository and is never displayed in full;
+- (g) afterwards, the original Ollama application and server process are restored exactly as the plan specifies.
+
+If the plan uses persistent settings instead, it justifies them, and each falls under conditions 4 and 6 of Category B. Before any restart that could rotate a server log, including a restart of the original application, the current logs are copied outside the repository and verified by SHA-256.
+
+**Lifecycle requests.** A *lifecycle request* is a no-prompt Ollama API request whose only purpose is to load or unload a model. It carries no prompt or message content and must not generate response text. It is never a diagnostic submission, a warm-up generation or an evaluation call. Only two kinds are permitted:
+- an **unload request**: `keep_alive: 0` for one named model;
+- a **load request**: the application's model name and per-request options, including `num_ctx` 16384, with a positive `keep_alive`.
+
+A procedure may use a kind of lifecycle request only if the installed Ollama version's support for it, without text generation, has been established from that version's own documentation and recorded beforehand in the D1 authorization or the approved D2 plan. At each use, the request must succeed, return no generated text (empty response content, and zero generated tokens where reported), and have its effect confirmed by `GET /api/ps`. Anything else is a **lifecycle failure**.
+
+**Model loading by a scheduled submission.** Explicit lifecycle requests are the only permitted calls whose sole purpose is to control or verify model state. A model is also loaded implicitly when the first scheduled diagnostic submission for it runs: in D1, the first scheduled `dev-v1` case for that model (D1 procedure, step 2); in D2, the first scheduled synthetic input for that model under each configuration (D2 procedure, step 3). That submission is not a lifecycle request. It remains the diagnostic submission for its scheduled case, and it is not an additional warm-up. No other model call is permitted: no warm-up generation, no repeated diagnostic submission, and no model call other than the scheduled diagnostic submissions and the lifecycle requests that the procedures specify, each under its own authorization and verification rules.
+
+**D1 procedure.** D1 runs the two installed models one after the other, in the order fixed by the D1 authorization. For each model:
+1. **Before any submission:**
+   - (a) verify items V1, V2 and V4 (Comparison A). If any is not `MATCH`, Stop rules, class 1 applies, and no diagnostic submission is made;
+   - (b) read `GET /api/ps`. If any model is resident, including this model, send each one an unload request;
+   - (c) read `GET /api/ps` again and confirm that no model is loaded;
+   - (d) a lifecycle failure, or a model still resident at step (c), is handled under Stop rules, class 3, and no diagnostic submission is made;
+   - (e) only after step (c) succeeds, continue with step 2.
+2. **First case.** Submit the first `dev-v1` case, in the order fixed by the D1 authorization (by default, `DEV_MANIFEST` file order), through the real application with `settings_for(tag, 42)`. This submission loads the model and is that case's only diagnostic submission. Its results are held in memory only; nothing derived from them is computed, printed or stored yet.
+3. **Model-load check.** When the first case reaches a terminal status, verify V3 (Comparison A) from the model-load entries it caused. If every item is `MATCH`, the in-memory result is kept and analyzed as the first case. Otherwise, it is discarded unanalyzed (Stop rules, class 1).
+4. **Remaining cases.** Submit the other seven `dev-v1` cases once each, in the fixed order.
+
+Each of the 8 `dev-v1` cases is submitted **exactly once per model**. No warm-up, repeat or extra case is added. Only derived counts are kept: the §14.3 reason, length, real-newline count, literal-`\n` count and fence presence. D1 runs before D2, or only after D2's final restoration check has passed.
+
+**D2 procedure.** Inputs are only newly authored synthetic Python files (about 1 KB, about 5.2 KB / 180 lines and about 11.6 KB / 400 lines). They are derived from no dataset, are disjoint by SHA-256 from Dataset v1 and `dev-v1`, and have their hashes fixed in the plan before the first call. For each configuration (B0, then each variant in the planned order):
+1. preserve the logs, apply the configuration, start Ollama by the plan's launch method, and verify the server-level items V1, V2 and V4 (Comparison A for B0, Comparison B for a variant) before any submission;
+2. for each model, unload every resident model with unload requests and confirm through `GET /api/ps` that none remains (otherwise Stop rules, class 3);
+3. submit each synthetic input **exactly once per model** through the real application with `settings_for(tag, 42)`. The model-load entries caused by the first synthetic submission are verified (Comparison A for B0, Comparison B for a variant) before that submission's measurements are used. If verification fails, those measurements are discarded.
+
+D2 records layers offloaded, KV buffer size and type, decode speed at each context size, tokens generated, terminal status and stage outcome. It analyses no output validity.
+
+**Configuration verification.** Each item is compared with its applicable round-1 reference evidence. An item is verifiable only if that evidence states its value explicitly. A value is never inferred from defaults, documentation or another item; if the evidence does not establish it, the item is `UNVERIFIABLE`. Before use, the D0 copy of the round-1 server log is checked against its SHA-256 recorded in §22.5, and the reports and environment record against their committed content at `e7c171a`.
+
+| Item | Compared | Round-1 reference evidence | Live evidence |
+|---|---|---|---|
+| **V1. Ollama version** | Version string | The primary reports' `ollama_version` and the environment record's Ollama version. The round-1 server log has no version entry. | `GET /api/version` |
+| **V2. Server startup configuration** | Every key and value in the `server config` startup entry | The preserved round-1 server log. Valid only if it contains exactly one server-startup entry, timestamped before round 1's first run, with no later server start before round 1 ended. | A hash-verified, read-only copy of the log of the server in use |
+| **V3. Model-load settings, per model** | Context size; key and value cache element types; flash-attention state; sequences per slot; thread and batch-thread counts | The preserved round-1 server log's load entries for the same model | The load entries caused by that model's first diagnostic submission under the current configuration, or by a load request where Comparison B step 2a requires one |
+| **V4. Model identity, per model** | Model tag and full digest | The primary reports' `model_tag` and `model_digest` | `GET /api/tags` |
+
+Recorded, not compared: layers offloaded, buffer sizes and free GPU memory at load. These are run conditions. Each item results in `MATCH`, `MISMATCH` or `UNVERIFIABLE`. Only item names and results are reported; values are never printed or committed.
+
+- **Comparison A: round-1 equivalence (D1, and D2's B0).** V1–V4 must all be `MATCH` against their round-1 reference evidence. Failures are handled under Stop rules, class 1.
+- **Comparison B: approved variant differences (each D2 variant, compared with the verified B0, not with round 1).** The plan states in advance, for each variant, the settings it changes and their values, and the model-load effects directly attributable to them. For each variant:
+  1. **Support.** Before the setting is applied, it must be listed as supported by the installed version. Otherwise the variant is not run.
+  2. **Effect.** The startup configuration must show the set value, and the load entries must show the declared effect. A variant that fails step 1 or step 2 is **void** and is handled under Stop rules, class 2.
+  3. **Everything else.** Every other V2 key and every other V3 item equals B0's.
+  4. **Recording.** Declared effects are recorded as planned observations, never as evidence against B0's equivalence.
+  5. **Use of results.** Variant results are runtime-performance observations only. They are never compared with gate thresholds, and never used as selection or ranking evidence.
+
+  Intended variant settings are not required to match B0 while that variant runs.
+
+  **2a. Restoring and checking B0 after a void variant.** Preserve the logs, then restore B0 with the plan's launch method. A variant that failed the support check was never applied, so it needs no restart, but every check below is still performed. Before any further variant, every check must be `MATCH`:
+  - **R1. Version:** `GET /api/version` equals the Ollama version authorized in the approved D2 plan;
+  - **R2. Model identity:** for each model, `GET /api/tags` shows the tag and full digest recorded for B0, which equal the primary reports' values;
+  - **R3. Startup configuration:** the restored server's `server config` entry equals the recorded B0 startup snapshot, key by key;
+  - **R4. Model-load settings:** for each model, after a load request, the required V3 items equal the recorded B0 load entries;
+  - **R5. Persistent environment:** persistent Windows environment variables equal the pre-D2 snapshot;
+  - **R6. Application configuration:** `settings_for(tag, 42)` builds without error, with no submission made;
+  - **R7. Inputs:** the synthetic-input hashes equal those in the approved plan;
+  - **R8. Log integrity:** the SHA-256 of the logs just preserved matches their source;
+  - **R9. Working tree:** the working tree is clean.
+
+  Any check that is `MISMATCH` or `UNVERIFIABLE`, or any lifecycle failure during restoration, is handled under Stop rules, class 3. No variant runs on an unverified configuration.
+- **Comparison C: unexpected differences (any D2 configuration).** Any difference not declared under Comparison B voids that variant and is handled under Stop rules, class 3. This covers a difference in a server startup key or a V3 item; in an application configuration value or per-request model parameter (checked by `settings_for`); in a prompt identifier, schema (repository commit), context limit or timeout; in a model digest, the Ollama version or a synthetic-input hash; or in any other Category A item.
+
+**Stop rules (D1 and D2).** These rules alone decide what happens after a failed check. Every stop is reported. Every D2 stop is followed by restoration of the original server process and settings, as the approved plan specifies.
+- **Class 1: round-1 equivalence fails (Comparison A, for D1 and for D2's B0).** Any required item that is `MISMATCH` or `UNVERIFIABLE` stops the diagnostic. The only exceptions are these owner decisions:
+  - **D1:** the affected model's run stops. If the failure is found at the first case's model-load check, that case's result is discarded unanalyzed. The other model's run does not start. D1 resumes only if the project owner either accepts the limitation, which is then stated in the results, or approves an amended procedure.
+  - **D2, `MISMATCH`:** no variant runs. The plan must be adjusted and re-approved.
+  - **D2, `UNVERIFIABLE`:** no variant runs unless the project owner allows continuation with results labelled "B0 not verified as equivalent to round 1". Those results support comparisons within D2 only, and claim nothing about reproducing round 1.
+- **Class 2: a D2 variant is void** (unsupported setting, or declared effect not observable). The variant is recorded as void, and its measurements, if any, are not used. B0 is restored and checked under Comparison B, step 2a. The next planned variant may run only if R1–R9 are all `MATCH` and no lifecycle failure occurred. Otherwise, class 3 applies.
+- **Class 3: stop D2, or the affected D1 run, pending an owner decision.**
+  - (a) Any undeclared difference (Comparison C).
+  - (b) A failed restoration, or any restoration check (R1–R9, or the final restoration check) that is `MISMATCH` or `UNVERIFIABLE`.
+  - (c) A lifecycle failure, a model still resident when none should be, or use of a lifecycle request whose support was not established beforehand.
+  - (d) A change of Ollama version or an automatic update; a log-preservation hash mismatch; a GPU or OS out-of-memory event; an Ollama crash or system instability; a working-tree change; raw generated text reaching a file, log or terminal; any input outside the diagnostic's permitted inputs; or any Category A value differing from its expected value.
+
+  In D1, items (c) and (d) stop the affected model's run before any further diagnostic submission, and the other model's run does not start. Nothing resumes without a separate owner decision.
+- **Not stops:** timeouts and HTTP errors on a diagnostic submission are recorded as data. That submission is not retried.
+
+**Final D2 restoration check.** After D2 ends or stops, every recorded setting is restored, the logs are preserved, and the original Ollama application and server process are restored as the plan specifies. Then: (1) the startup server configuration equals the pre-D2 snapshot; (2) the Ollama version equals the version authorized in the plan; (3) `scripts/check_environment.py` passes, run **without** `--record`; (4) persistent Windows environment variables equal the pre-D2 snapshot; (5) the working tree is clean. If restoration fails, D1 and every official run wait until it is fixed.
+
+**Common rules.**
+- No Dataset v1 input in either diagnostic.
+- Generated code is never written to a file, log, terminal or commit. Only derived counts are kept, and a candidate is held in memory only for that check. §14.6 governs the application; this rule extends its no-retention requirement to diagnostic scripts and terminal output.
+- Raw outputs, logs and settings snapshots stay outside the repository. This decision authorizes no commit. Recording diagnostic results in the repository needs a separate owner decision, and any committed summary excludes usernames, absolute paths, environment values, device identifiers, generated code and source text.
+
+**Scope summary.**
+
+| | **D1: output-format diagnosis** | **D2: runtime-performance diagnosis** |
+|---|---|---|
+| Prerequisites | D-97 merged, and separate owner authorization of D1 | D-97 merged, an approved benchmark plan, and separate owner authorization of D2 |
+| Inputs | Only `dev-v1` (8 cases, `DEV_MANIFEST`), prompt `v1-r0`, the two installed models | Only the plan's synthetic Python inputs; never Dataset v1 or `dev-v1` |
+| Server settings | Unchanged; must pass Comparison A | B0, then only Category B variants under Comparison B |
+| Submissions | Each case exactly once per model; the first case's model load is verified before its in-memory result is analyzed | Each synthetic input exactly once per model per configuration; the first submission's model load is verified before its measurements are used |
+| Model loading | By the first scheduled `dev-v1` submission of each model, which is that case's only diagnostic submission and not a warm-up | By the first scheduled synthetic submission of each model under each configuration, which is that input's only diagnostic submission and not a warm-up; and by load requests, only for Comparison B step 2a |
+| Lifecycle requests | Unload requests only | Unload requests, and load requests for Comparison B step 2a |
+| Kept | Derived counts only, outside the repository | Runtime measurements, log copies and the settings snapshot, outside the repository |
+| Stops | Stop rules, classes 1 and 3 | Stop rules, classes 1, 2 and 3; then restoration and the final restoration check |
+| Questions examined (informational only) | Whether `qwen2.5-coder:7b-instruct-q4_K_M`'s `DOES_NOT_PARSE` rejections share the double-escaping pattern observed for `qwen3:4b-instruct-2507-q4_K_M`; run-to-run variation; whether the development set shows review misses; whether long output on good code recurs | Whether decoding is limited by CPU-resident layers or KV-cache placement; whether a ~5 KB review and improvement could finish within the unchanged 300 s / 180 s. Synthetic inputs predict no gate. |
+
+**Not authorized by D-97:** a prompt revision or a new comparison snapshot; adopting a runtime setting; a new candidate or any download; changes to the PR-08 code or to PR #21; a correction of any round-1 result; a rerun of Stages A–E; comparison round 2. Each needs its own separately approved amendment with a new decision ID, or a separate owner decision where this specification provides for one.
 
 **After selection (D-95).** This follows the §10.1 prompt-refinement rules exactly:
 1. Refinement runs on the frozen development set only, recording every revision `v1-rN` immutably.
@@ -2884,14 +3023,14 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | M1 vertical slice (PR-02 to PR-05) | Milestone | **COMPLETED.** PR-02 to PR-05 are completed, with the corrective PRs #7, #11 and #14. PR-05's acceptance passed: a review with the real static tools and the fake AI works through the browser (§22.5). |
 | **PR-06 — Ollama integration** (§22.5) | First M2 implementation task | **COMPLETED.** Merged as PR #17 on 2026-10-10 (merge commit `95aa3a7`). Its prerequisite was met by PR #16, which recorded Ollama `0.40.2` in the environment record. Its branch was deleted locally and remotely. Execution record in §22.5. |
 | **PR-07 — Improvement backend** (§22.5) | M2 implementation task | **COMPLETED.** Merged as PR #19 on 2026-10-10 (merge commit `7954d61`). Its branch was deleted locally and remotely. Execution record in §22.5. |
-| **PR-08 — Prompts, evaluation and model selection** (§22.5) | Last M2 implementation task | **NOT STARTED (next).** It includes the model evaluation and selection and the prompt v1 freeze. |
+| **PR-08 — Prompts, evaluation and model selection** (§22.5) | Last M2 implementation task | **BLOCKED.** Comparison round 1 ended with `MODEL_SELECTION_FAILED`. PR #21 is open and not merged, as the PR-08 acceptance requires, and work is stopped pending an approved §20.9 Stage E amendment. Only the D-97 documentation exception and diagnostic phase are permitted, and neither D1 nor D2 has been authorized or run. PR-08 still includes the model evaluation and selection and the prompt v1 freeze. Execution record in §22.5. |
 | PR-09, PR-10 | M3 and M4 implementation tasks | **NOT STARTED.** |
-| M2 Ollama, improvement backend, model selection | Milestone | **IN PROGRESS.** PR-06 and PR-07 are completed. PR-08 remains, and M2 closes only with PR-08 (§22.5). No model has been selected, and prompt v1 is still `status: draft`. The model used for the PR-06 and PR-07 live smoke tests was a temporary test model, not a selection. |
+| M2 Ollama, improvement backend, model selection | Milestone | **IN PROGRESS, halted** at §20.9 Stage E after comparison round 1 ended with `MODEL_SELECTION_FAILED`. PR-06 and PR-07 are completed. PR-08 is BLOCKED, and M2 closes only with PR-08 (§22.5). No model has been selected, and prompt v1 is still `status: draft`. The model used for the PR-06 and PR-07 live smoke tests was a temporary test model, not a selection. |
 | M3, M4 | Milestones | **NOT STARTED.** |
 
 This table records the **current state** only.
 - **Normative workflow:** §22.3–22.6 (D-96) is what every implementation PR must follow. It is unchanged.
-- **Execution history:** what actually happened during PR-00, PR-01, PR-02, PR-03 (including PR-03's corrective PR #7), PR-04, the observability correction that followed it (PR #11), PR-05 (including PR-05's corrective PR #14), PR-06 and PR-07 is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
+- **Execution history:** what actually happened during PR-00, PR-01, PR-02, PR-03 (including PR-03's corrective PR #7), PR-04, the observability correction that followed it (PR #11), PR-05 (including PR-05's corrective PR #14), PR-06, PR-07 and PR-08's comparison round 1 (the open PR #21) is in the §22.5 execution records, including PR-00's two recorded deviations from the intended sequence. That history does not amend the normative workflow.
 
 ### 22.2 Repository state and the Q7 experiment (historical note)
 
@@ -2970,7 +3109,7 @@ CI pattern: ^(feat|fix|docs|test|build|ci|refactor|perf|style|chore)(\([a-z0-9-]
 | PR-05 | `feat/m1-frontend` | M1 | Minimal browser vertical slice | Fake-AI review works end to end; **closes M1** | **COMPLETED** (PR #13, merge `3e7c2d3`; corrective PR #14, merge `6a4ff8b`) |
 | PR-06 | `feat/m2-ollama` | M2 | Ollama integration | Live provider contract passes | **COMPLETED** (PR #17, merge `95aa3a7`) |
 | PR-07 | `feat/m2-improvement` | M2 | Improvement backend (§22.1 places it in M2; gates C3/C4 need it) | Improvement tests pass | **COMPLETED** (PR #19, merge `7954d61`) |
-| PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** | **NOT STARTED** (next) |
+| PR-08 | `feat/m2-model-evaluation` | M2 | Prompts, evaluation, model selection | M2 "done when" passes; **closes M2** | **BLOCKED** (comparison round 1 `MODEL_SELECTION_FAILED`; PR #21 open, not merged) |
 | PR-09 | `feat/m3-ui-completion` | M3 | Complete UI behaviour | BS §39 acceptance demonstrable; **closes M3** | NOT STARTED |
 | PR-10 | `feat/m4-hardening` | M4 | Hardening and V1 freeze documentation | M4 "done when" passes; **closes M4** | NOT STARTED |
 
@@ -3622,6 +3761,30 @@ The Status column is the execution record and mirrors the §22.1 status table. T
 - **Rule:** every candidate uses the same frozen comparison prompt and Dataset v1. Prompt refinement happens only after selection (D-84, D-95).
 - **Suggested commits:** `feat(prompt): add versioned prompt manifest`, `feat(eval): add frozen dataset infrastructure`, `feat(eval): add evaluation runner`, `feat(eval): add candidate comparison reports`, `feat(eval): add model selection record`, `test(eval): add evaluation gate tests`, `docs(eval): record model selection results`.
 - **Acceptance:** the M2 "done when" passes (§22.1). If the outcome is `MODEL_SELECTION_FAILED`, the records are committed on the branch, the PR is **not** merged, and work stops pending the approved amendment of §20.9 Stage E.
+- **Documentation exception during the halt (D-97).** While work is stopped, the only permitted repository activity is the documentation workflow needed to propose, review and merge a required CIS amendment:
+  1. a dedicated `docs/` task branch created from `main` (§22.3), whose changes are limited to this specification;
+  2. Conventional Commits (§22.4);
+  3. one pull request to protected `main` that passes the required checks and completes the self-review checklist (§22.6);
+  4. a merge commit performed manually by the project owner.
+
+  Merging is the project owner's approval; an unmerged amendment has no effect. This exception does not authorize application or evaluation-harness implementation; corrective commits, or any change to the PR-08 branch or PR #21; live diagnostics, which need D-97 to be in force and their own separate authorization (§20.9); prompt, schema or dataset changes; model downloads; adopting a runtime setting; or another evaluation round.
+- **Comparison round 1 record: `MODEL_SELECTION_FAILED`** (historical record only; no decision is created; PR-08 is not completed).
+  - **Pull request:** #21, `feat(m2): evaluate models and freeze prompts`, from `feat/m2-model-evaluation` into `main`, head `e7c171acad76b6ec444fbfeaec2525494d2e0a04`. It is **open and not merged**, as the acceptance rule requires. Its required checks `commits`, `backend` and `frontend` pass.
+  - **Primary runs:** seed 42, backend commit `928e00a`, Dataset v1 manifest `c0692660…`, prompt revision `v1-r0` (manifest identifier `06e536ad…`), Ollama `0.40.2`, on 2026-10-10 between 21:49 and 22:42 UTC.
+    - Both candidates passed Stage A.
+    - Stage C, as recorded: `qwen2.5-coder:7b-instruct-q4_K_M` failed C1, C3, C4, P1 and P3; `qwen3:4b-instruct-2507-q4_K_M` failed C3, C4 and P1.
+    - No candidate reached Stage D, and no model is selected.
+  - **Records on the branch**, which stay byte-identical: the two eligibility records, the two primary reports (`.json` and `.md`), the comparison summary `comparison-round-1` (`.json` and `.md`) and `model-selection-record.md`, all under `docs/evaluation/`.
+  - **Disclosed deviation:** after both primary runs, an output-format diagnosis was run on the development set with `qwen3:4b-instruct-2507-q4_K_M` and `v1-r0`, without express authorization by this specification. It is disclosed in the model-selection record. It produced no prompt revision and influenced no gate.
+  - **Evidence preservation (D0):** completed on 2026-10-11 under the project owner's separate instruction, before and independently of D-97.
+    - An Ollama restart outside the evaluation had rotated the round-1 server log once.
+    - The three existing Ollama server logs (the round-1 log, its successor and its predecessor) were copied outside the repository, and each copy was verified against its source by SHA-256. All three matched:
+      - round-1 log: 492,780 bytes, `1aaf4e9162ee7e1727e248190437fc629032b5ba29e8066ddf91a87f4ec09be7`;
+      - successor: 3,121 bytes, `757332c54f740b088eb87ed4bc3fd7eb277801b7c2f439615a6bcd3e9a3bcef6`;
+      - predecessor: 34,243 bytes, `b46ea657a510710989015cd6eeb4716785cf0e04fd0b8b70ca8ab978c10100c0`.
+    - The logs and copies are not committed, because they contain machine-specific paths and settings. D0 is not repeated, and D-97 does not authorize it.
+  - **The D-97 amendment** was prepared under the project owner's explicit instruction, before the documentation exception existed.
+  - **Status:** PR-08 is **BLOCKED**, and M2 is halted (§20.9 Stage E). Only the D-97 documentation exception and diagnostic phase are permitted. At the time of this record, neither D1 nor D2 had been authorized or run, no model is selected or frozen, and prompt v1 is still `status: draft`.
 
 **PR-09: Complete UI behaviour.**
 - **Scope:** the generating-improvement state; the improved-code panel; issue location linking; partial and coverage banners; failure states; the remaining BS §39 behaviour (§15).
@@ -3784,16 +3947,17 @@ Status values: **Active**; **Refined** (still in force, with details changed by 
 | **D-89** | Response time is documented as an empirical characteristic (median, p95, max, timeout rate, hardware, model, settings). It is not an SLA. | BS §34: expectations are hardware-aware. A universal latency promise would be unfounded. | Active |
 | **D-90** | `AI_CONTEXT_EXCEEDED` error code (pre-flight budget failure, or `done_reason == "length"`). Optional `OLLAMA_MODEL_DIGEST` readiness check. | Context exhaustion is a distinct, actionable condition. The digest check ties the running model to the frozen record. | Active (refines D-65, D-54) |
 
-**Final correction pass (D-91 to D-94), clarification (D-95) and implementation governance (D-96).**
+**Final correction pass (D-91 to D-94), clarification (D-95), implementation governance (D-96) and the Stage E diagnostic phase (D-97).**
 
 | ID | Decision | Rationale | Status | Affected sections |
 |---|---|---|---|---|
 | **D-91** | `qwen2.5-coder:3b-instruct-q4_K_M` is excluded from the V1 eligible set. The eligible set is `qwen3:4b-instruct-2507-q4_K_M` and `qwen2.5-coder:7b-instruct-q4_K_M`, both Apache-2.0. Research and non-commercial licences are ineligible. | Avoids licensing and distribution ambiguity (Qwen Research License Agreement) despite a good hardware fit. This is not a hardware judgement. | Active (refines D-69, D-83) | §0.5, §1.4, §20.9, §23, §24.A, §25, §26 |
 | **D-92** | Request-time context budgeting: integer `est()`, `available_output_budget`, `actual_output_budget = min(NUM_PREDICT, available)`, the named minimums `REVIEW_MIN_OUTPUT_TOKENS` and `IMPROVE_MIN_OUTPUT_TOKENS(S)`. If the minimum does not fit, the operation is not started (`AI_CONTEXT_EXCEEDED`). Startup validation is kept as an additional guard. | Prompt size varies with the source, static findings, issue count and length, and the prompt version. Startup-only validation cannot guarantee that every actual request fits the context window. | Active (refines D-75) | §9.3, §9.7, §20.3 |
-| **D-93** | If no candidate passes the hard gates, or none passes stability verification, the outcome is `MODEL_SELECTION_FAILED`: no model is selected, everything is recorded, and the only next steps are an approved candidate-set expansion or evaluation or configuration change. | Hard quality and security gates are meaningful only if failure prevents selection. Otherwise the gates can be silently bypassed. | Active (refines D-70, D-71) | §10.1, §20.3, §20.9, §20.10, §22, §24.B, §25 |
+| **D-93** | If no candidate passes the hard gates, or none passes stability verification, the outcome is `MODEL_SELECTION_FAILED`: no model is selected, everything is recorded, and the only next steps are an approved candidate-set expansion or evaluation or configuration change. | Hard quality and security gates are meaningful only if failure prevents selection. Otherwise the gates can be silently bypassed. | Active (refines D-70, D-71; diagnostic phase defined by D-97) | §10.1, §20.3, §20.9, §20.10, §22, §24.B, §25 |
 | **D-94** | Stability gate: the complete suite on seeds 42, 43 and 44. The full verdict (C1–C4, AGG, T0, P1–P6) must be PASS **independently for each seed**. No averaging. N1–N4 are reported per seed and as a mean, for information only. | A single deterministic seed suits a fair primary comparison. Multiple seeds give practical robustness evidence against output variability. Averaging could hide a critical failure. There is no claim of statistical significance. | Active (refines D-73) | §20.3, §20.7, §20.8, §20.9, §22 |
 | **D-95** | Final prompt-refinement lifecycle. Refinement occurs only on the frozen development set, which is disjoint from Dataset v1; Dataset v1 is never used for refinement or modified. Every prompt revision is recorded immutably (revision ID, exact content, manifest identifier, development-set result, reason, timestamp and run ID). Refinement stops only when the project owner accepts, or explicitly designates, the current revision as the final candidate; this is an approval step, never a gate waiver. Each final-gate attempt evaluates a frozen, distinct revision on seeds 42, 43 and 44 under the unchanged D-94 rule. At most three attempts are allowed; a third failed attempt produces `MODEL_SELECTION_FAILED`. | Makes the prompt lifecycle reproducible and bounded. It prevents uncontrolled or unlimited "retry until it passes" behaviour, test-set contamination, and approval-based bypassing of the hard gates. | Active (refines D-61, D-84; consistent with D-93, D-94) | §0.5, §1.4, §10.1, §20.3, §20.6, §20.9, §20.10, §22, §23, §24.B, §27 |
 | **D-96** | Production implementation is executed through bounded GitHub pull requests from dedicated task branches into protected `main`. Commits use Conventional Commits 1.0.0. Each PR has an explicit CIS-traceable scope, required CI and tests, and acceptance criteria (PR-00 to PR-10, mapped to M0–M4). Merge commits preserve each PR's commit history. The Q7 experiment is not production implementation and is never reused as source code. | Makes every change reviewable, traceable to the CIS and reversible. Prevents scope creep and silent baseline changes. Keeps the verified Q7 knowledge separate from the (removed) experimental code. | Active | §0.5, §1.4, §4, §8.8, §8.9, §20.3, §22, §24.A, §25, §27 |
+| **D-97** | After a `MODEL_SELECTION_FAILED` comparison round: (1) during the halt, only the documentation workflow needed to propose, review and merge a CIS amendment is permitted (a `docs/` branch from `main` changing only the CIS, one PR to protected `main` with the required checks, and a manual merge by the project owner); (2) a bounded diagnostic phase may run, each part only with separate owner authorization: D1, a one-time output-format diagnosis submitting each frozen development-set case exactly once per installed model with the unchanged comparison snapshot; and D2, a one-time runtime-performance diagnosis on synthetic inputs, comparing a diagnostic control configuration (B0, the recorded pre-D2 server settings) with temporary Ollama server-setting variants that are pre-approved in a benchmark plan, verified as supported and effective, recorded, applied with one launch method and fully restored; (3) calls whose sole purpose is to control or verify model state are only no-prompt lifecycle requests (unload requests and, for B0 restoration checks, load requests) that generate no text, whose support is established beforehand and each use verified; the first scheduled D1 or D2 diagnostic submission for a model may itself load that model, exactly as the diagnostic's procedure specifies, and remains the diagnostic submission for its scheduled case, not a warm-up; no warm-up generation, repeated diagnostic submission or other model call is permitted; (4) D1 and B0 must match the applicable round-1 reference evidence (the preserved server log for server and model-load settings, the primary reports and the environment record for the Ollama version, the primary reports for model identities and digests), an item being verifiable only where that evidence states its value; any required `MISMATCH` or `UNVERIFIABLE` item stops the diagnostic, subject only to the stated owner-decision exceptions; a D2 variant with an unsupported setting or an unobservable declared effect is void, and D2 continues only after B0 is restored and every restoration check is `MATCH` (Ollama version as authorized, model identities and digests, the B0 startup configuration, the B0 model-load settings and the remaining required checks); undeclared differences, a failed or unverifiable restoration check, lifecycle failures, and environment or safety conditions stop D2, or the affected D1 run, pending an owner decision; intended variant settings are not required to match B0 while that variant runs; (5) B0 is not, and does not replace, the official evaluation baseline (§21.1, §20.7), and tested settings stay diagnostic-only unless adopted through a separate Stage E amendment. No raw generated code is kept, and no result is a gate or selection result. It selects, ranks and freezes nothing; changes no application configuration, model parameter, prompt, schema, dataset, timeout, gate or official baseline; adopts no runtime setting; authorizes no commit outside the documentation workflow; and does not authorize a new comparison round. | Provides evidence for a Stage E amendment without weakening a gate, contaminating Dataset v1, redefining a baseline or changing the runtime silently, and keeps the halt, diagnosis, adoption and selection separate. | Active (refines D-93; consistent with D-72, D-74, D-78, D-82, D-84, D-95, D-96) | §0.5, §20.6, §20.9, §22.1, §22.5, §23, §27 |
 
 ---
 
@@ -4199,9 +4363,9 @@ This audit was performed afresh on the complete document, after the final correc
        - the new §27.2 row, criterion 21 and §27.6, including past-tense pointers in its PR-03 and PR #11 entries.
    - **Status consistency:**
      - In the §22.1 status table, PR-00 to PR-07 each appear once, as COMPLETED. M0 and M1 are COMPLETED, and M2 is IN PROGRESS.
-     - PR-08 is NOT STARTED (next). PR-09, PR-10 and M3–M4 are NOT STARTED.
+     - At the time of this check, PR-08 was NOT STARTED (next), and PR-09, PR-10 and M3–M4 were NOT STARTED. Check 17 supersedes this for PR-08 and M2.
      - The §22.5 Status column agrees with the table for every planned PR.
-     - No section claims that a model is selected or frozen, that prompt v1 is frozen, that any model evaluation has started, or that any PR-09 UI behaviour exists. The PR-06 and PR-07 smoke-test model is recorded only as a temporary test model.
+     - At the time of this check, no section claimed that a model is selected or frozen, that prompt v1 is frozen, that any model evaluation had started, or that any PR-09 UI behaviour exists. Check 17 supersedes this for the model evaluation. The PR-06 and PR-07 smoke-test model is recorded only as a temporary test model.
      - Q7 is still classified only as experimental verification, and no Q7 code was reused.
    - **Acceptance checked against this document.**
      - Every item of the §22.5 PR-07 scope is present in the merged code: the improvement operation (§14), the issue-constrained improvement prompt (the PR-06 v1 draft, unchanged), acceptance validation including parseability and signature preservation (§14.3), and the improvement status and error handling (§14.5).
@@ -4229,12 +4393,62 @@ This audit was performed afresh on the complete document, after the final correc
      - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
      - the frozen constants are unchanged.
    - **Byte-identical**, compared with the text before this pass: everything outside §22.1, §22.5 and §27, including the decision register and every constant.
+17. **Stage E diagnostic-phase amendment (D-97) and PR-08 comparison round 1 record** (2026-10-11; one new decision, D-97; version unchanged at 0.3):
+   - **What changed:**
+     - §0.5: a D-97 row in the change index.
+     - §20.6: one sentence permitting the one-time D1 diagnosis on the development set, which is not refinement.
+     - §20.9: D-97 added to the heading, and the "Stage E diagnostic phase (D-97)" paragraph after Stage E. It covers the limits, Categories A and B, B0, the D2 launch method, lifecycle requests and model loading by a scheduled submission, the D1 and D2 procedures, configuration verification (V1–V4), Comparisons A–C with the B0 restoration checks R1–R9, the stop rules, the final D2 restoration check, the common rules and the scope summary.
+     - §22.1: the PR-08 row (BLOCKED), the M2 row (IN PROGRESS, halted) and the execution-history note.
+     - §22.5: the PR-08 Status column (BLOCKED); below the unchanged PR-08 plan, the documentation exception during the halt and the comparison round 1 record, including the disclosed deviation and the D0 evidence-preservation record.
+     - §23: the D-97 row, the table caption, and the D-93 status cell ("diagnostic phase defined by D-97").
+     - This §27: check 16's PR-08 status and model-evaluation lines, the §27.2 PR-07 row and criterion 21 are marked as historical; the new §27.2 rows, criteria 22 and 23, the §27.5 note and §27.6.
+   - **Decision consistency:**
+     - D-97 refines D-93. Stage E (a) and (b) remain the only routes to a new comparison round, and the diagnostic phase is not one of them.
+     - D-97 changes no gate, threshold, timeout, dataset, prompt, schema, generation setting, application configuration, model or official baseline (§21.1, §20.7).
+     - D-72 and D-95 hold: Dataset v1 is not used by either diagnostic, and D1 produces no prompt revision.
+     - D-74 holds: the P gates stay defined at the frozen 300 s / 180 s configuration.
+     - D-78 and D-82 hold: no record changes, and no version changes.
+     - D-96 holds: the documentation exception uses the §22.3–22.6 workflow and a manual merge.
+   - **Internal consistency of D-97:**
+     - The register row, the §20.9 paragraph, the scope summary and the stop rules agree on the following:
+       - each diagnostic needs separate owner authorization and runs once;
+       - D1 submits each `dev-v1` case exactly once per model, with no warm-up, and the first case's model load is verified before its in-memory result is analyzed;
+       - D2 uses synthetic inputs only;
+       - calls whose sole purpose is to control or verify model state are no-prompt lifecycle requests that generate no text. The first scheduled D1 or D2 submission for a model may itself load it, remains the diagnostic submission for its scheduled case, and is not a warm-up. No other model call is permitted;
+       - each verification item names its applicable round-1 reference evidence;
+       - B0 must pass Comparison A, a void variant requires B0 restoration and R1–R9 before the next variant, and any undeclared difference stops D2;
+       - B0 is not the official baseline;
+       - no raw generated code is kept, and no result is a gate or selection result.
+     - No diagnostic is recorded as authorized or performed.
+   - **Status consistency:**
+     - In the §22.1 status table, PR-00 to PR-07 each appear once, as COMPLETED. M0 and M1 are COMPLETED.
+     - PR-08 is BLOCKED after comparison round 1 ended with `MODEL_SELECTION_FAILED`, with PR #21 open and not merged. M2 is IN PROGRESS and halted at §20.9 Stage E.
+     - PR-09, PR-10 and M3–M4 are NOT STARTED.
+     - The §22.5 Status column agrees with the table for every planned PR.
+     - No section claims that a model is selected or frozen, that prompt v1 is frozen, or that D1 or D2 has been authorized or run.
+   - **Evidence re-verified before recording:**
+     - **On GitHub:** PR #21's state (open, not merged), head `e7c171a`, base `main` and passing required checks; the protection of `main` (`commits`, `backend` and `frontend` required, strict, enforced for administrators).
+     - **From PR #21's branch:** both primary reports (candidates, digests, Ollama version, backend commit, Dataset v1 manifest, prompt revision and manifest identifier, seed, run times and failed gates) and the comparison outcome.
+     - **From the D0 record:** the three log sizes and SHA-256 values.
+   - **Stale-status sweep.** Every match of "PR-08", "NOT STARTED (next)", "M2 is", "evaluated" and "D-97" in §22 and §27 was classified:
+     - **current:** §22.1, the §22.5 Status column, the PR-08 round 1 record, the new §27.2 rows, criteria 22 and 23, §27.5 and §27.6;
+     - **historical**, marked as such: check 16's PR-08 status and model-evaluation lines, the §27.2 PR-07 row and criterion 21;
+     - **historical by nature:** earlier checks' "there is no D-97" statements, and earlier records' statements bounded by their dates;
+     - **normative plan:** the §22.1 M2 scope and done-when, the §22.5 plan rows and the PR-08 to PR-10 plans.
+
+     No defect remains.
+   - **Mechanical checks repeated** on the complete document:
+     - 155 headings, counted as in checks 9–16, and 127 distinct `§` references, 0 unresolved. Both are unchanged from check 16, because D-97 adds no heading and cites only existing sections;
+     - the §23 register has 97 rows, D-01 to D-97, with no gaps, no duplicates and no unregistered ID; D-97 is registered exactly once;
+     - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4;
+     - the frozen constants are unchanged.
+   - **Byte-identical**, compared with the text before this pass: everything outside §0.5, §20.6, §20.9, §22.1, §22.5, §23 and §27. In particular, every constant and every other decision row except D-93's status cell.
 
 ### 27.2 Results by domain
 
 | Domain | Checked | Result |
 |---|---|---|
-| **Decision IDs** | D-01 to D-96 sequential: 96 registered decisions, each exactly once, with no gaps or duplicates; D-96 is registered exactly once. D-95 has decision, rationale, status and affected sections; D-61 and D-84 point to D-95 | Consistent |
+| **Decision IDs** | D-01 to D-97 sequential: 97 registered decisions, each exactly once, with no gaps or duplicates; D-96 and D-97 are each registered exactly once. D-97 has decision, rationale, status and affected sections, and D-93 points to it. D-95 has decision, rationale, status and affected sections; D-61 and D-84 point to D-95 | Consistent |
 | **Cross-references** | every `§` reference, including the new §10.1 ↔ §20.6 ↔ §20.9 ↔ §20.10 ↔ §24.B prompt-lifecycle links | Consistent |
 | **Prompt lifecycle (D-95)** | §10.1 diagram and rules 1–5 ↔ §20.6 frozen development set ↔ §20.7 final-gate row ↔ §20.9 overview and "After selection" ↔ §20.10 revision records ↔ §22 M2 ↔ §24.A and §24.B ↔ §23 D-95 ↔ §20.3 tests | Consistent. Refinement happens only on the frozen, disjoint development set. Every revision is recorded immutably (`v1-rN`, content copy, manifest identifier, dev-set result, reason, timestamp and run ID). It stops at owner acceptance or designation, which is never a waiver. Each attempt uses a frozen, distinct revision on seeds 42/43/44 under the D-94 rule. At most 3 attempts; a third failure gives `MODEL_SELECTION_FAILED`. Freeze happens only after a PASS, with the passing revision's hashes. |
 | **Stability (D-94)** | §20.7, §20.8, §20.9 Stage D, §10.1 final gate | Unchanged. The full verdict must be PASS independently for each seed, with no averaging. |
@@ -4252,7 +4466,9 @@ This audit was performed afresh on the complete document, after the final correc
 | **Implementation status (observability correction, PR #11)** | §22.1 status table, §22.5 corrective-PR execution record, §7.2, §18, §19.1, D-55 | Consistent. `main` now also holds the §19.1 review events and safe exception diagnostics (merge `9823880`), recorded as a corrective PR after PR-04, outside the planned sequence. PR-00 to PR-04 remain COMPLETED and M0 COMPLETED. M1 was then IN PROGRESS (PR-05 remained), PR-05 was then NOT STARTED (next), and PR-06 to PR-10 and M2–M4 were NOT STARTED. The PR-06 provider metadata and the PR-07 stage-11 instrumentation are not claimed. The row below supersedes these statuses for PR-05 and M1. |
 | **Implementation status (PR-05 record, PRs #13 and #14)** | §22.1 milestone and status tables, §22.5 Status column and PR-05 execution record, §15.3–§15.7 | Consistent. `main` now also holds the minimal frontend vertical slice (merge `3e7c2d3`) and its partial-indication and lifecycle corrections (merge `6a4ff8b`). PR-00 to PR-05 are COMPLETED, and M0 and M1 are COMPLETED. PR-06 was then NOT STARTED (next), and PR-07 to PR-10 and M2–M4 were NOT STARTED. No Ollama, prompt-asset, improvement-generation, evaluation, model-selection, SQLite or E2E work then existed, and none of the PR-09 UI behaviour is claimed. The row below supersedes these statuses for PR-06, PR-07 and M2. |
 | **Implementation status (PR-06 record, PR #17)** | §22.1 milestone and status tables, §22.5 Status column and PR-06 execution record, §9.2–9.7, §10.1–10.5, §19.1 | Consistent. `main` now also holds the Ollama provider, the prompt renderer and the v1 draft prompts (merge `95aa3a7`), after the Ollama version was recorded (PR #16, merge `3694fbe`). PR-00 to PR-06 are COMPLETED, M0 and M1 are COMPLETED, and M2 is IN PROGRESS. PR-07 was then NOT STARTED (next), and PR-08 to PR-10 and M3–M4 were NOT STARTED. No improvement operation then existed, and no evaluation, model selection, prompt freeze, SQLite or E2E work exists. Prompt v1 is `status: draft`, and the PR-06 smoke-test model is not a selection. The row below supersedes these statuses for PR-07 and PR-08. |
-| **Implementation status (PR-07 record, PR #19)** | §22.1 status table, §22.5 Status column and PR-07 execution record, §14.1–14.6, §7.2, §16, §19.1 | Consistent. `main` now also holds the improvement operation and its §14.3 validation (merge `7954d61`). PR-00 to PR-07 are COMPLETED, M0 and M1 are COMPLETED, and M2 is IN PROGRESS. PR-08 is NOT STARTED (next), and PR-09, PR-10 and M3–M4 are NOT STARTED. No evaluation, model selection, prompt freeze, SQLite or E2E work exists. Prompt v1 is `status: draft`, and the smoke-test model is not a selection. |
+| **Implementation status (PR-07 record, PR #19)** | §22.1 status table, §22.5 Status column and PR-07 execution record, §14.1–14.6, §7.2, §16, §19.1 | Consistent. `main` now also holds the improvement operation and its §14.3 validation (merge `7954d61`). PR-00 to PR-07 are COMPLETED, M0 and M1 are COMPLETED, and M2 is IN PROGRESS. PR-08 was then NOT STARTED (next), and PR-09, PR-10 and M3–M4 are NOT STARTED. No evaluation, model selection, prompt freeze, SQLite or E2E work then existed. Prompt v1 is `status: draft`, and the smoke-test model is not a selection. The row below supersedes these statuses for PR-08 and M2. |
+| **Stage E diagnostic phase (D-97)** | §20.6, §20.9 Stage E and the D-97 paragraph, §22.5 PR-08 acceptance, §23 D-93 and D-97, §0.5 | Consistent. D-97 refines D-93 without adding a route to selection. During the halt, only the documentation workflow for a CIS amendment is permitted. D1 (development set, unchanged `v1-r0`, each case once per model, no warm-up) and D2 (synthetic inputs only; B0 and pre-approved, verified, recorded and restored Ollama server settings) each need separate owner authorization and run once. Verification items V1–V4 name their round-1 reference evidence. Comparisons A–C, the B0 restoration checks R1–R9, the lifecycle-request rules and the stop rules agree with the register row and the scope summary. No gate, timeout, dataset, prompt, schema, application configuration, model or official baseline changes, and B0 is not the official baseline. |
+| **Implementation status (PR-08 comparison round 1 record)** | §22.1 status table, §22.5 Status column, PR-08 documentation exception and comparison round 1 record | Consistent. Comparison round 1 ended with `MODEL_SELECTION_FAILED`: `qwen2.5-coder:7b-instruct-q4_K_M` failed C1, C3, C4, P1 and P3, and `qwen3:4b-instruct-2507-q4_K_M` failed C3, C4 and P1, as recorded. PR #21 (head `e7c171a`) is open and not merged, and its records stay byte-identical. PR-00 to PR-07 are COMPLETED, M0 and M1 are COMPLETED, PR-08 is BLOCKED, and M2 is IN PROGRESS and halted at Stage E. PR-09, PR-10 and M3–M4 are NOT STARTED. The disclosed development-set diagnosis and the D0 evidence preservation are recorded as history. Neither D1 nor D2 has been authorized or run. No model is selected or frozen, and prompt v1 is `status: draft`. |
 
 ### 27.3 Consistency with the parent specifications
 
@@ -4283,12 +4499,14 @@ This audit was performed afresh on the complete document, after the final correc
 | 18 | The observability correction (GitHub PR #11) is recorded as a corrective PR after PR-04, outside the planned sequence, with verifiable evidence (merge commit, CI, tests, the stage-coverage, correlation and log-privacy verification) and its deferrals to PR-06, PR-07 and PR-10; it changes no status: M1 was then IN PROGRESS, not closed; PR-05 was then NOT STARTED (next); PR-06 to PR-10 and M2–M4 remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
 | 19 | PR-05's completion is recorded with verifiable evidence (PRs #13 and #14, merge commits, CI, tests, the browser acceptance), with the original implementation and the corrective PR kept distinct and the PR-09 and PR-10 boundary stated; M1 is COMPLETED; PR-06 was then NOT STARTED (next); PR-07 to PR-10 and M2–M4 then remained NOT STARTED; no model is selected | Met (§22.1, §22.5) |
 | 20 | PR-06's completion is recorded with verifiable evidence (PRs #16 and #17, merge commits, CI, tests, the byte-limit correction, the `httpx.MockTransport` and live acceptance) and its PR-07, PR-08, PR-09 and PR-10 boundary; M2 is IN PROGRESS, not closed; PR-07 was then NOT STARTED (next); PR-08 to PR-10 and M3–M4 then remained NOT STARTED; no model is selected, the smoke-test model is not a selection, and prompt v1 remains a draft | Met (§22.1, §22.5) |
-| 21 | PR-07's completion is recorded with verifiable evidence (PR #19, merge commit, CI, tests, the fake and live acceptance), with its two behaviour changes traced to §16, §14.3, §14.5 and §5.7, and its PR-08, PR-09 and PR-10 boundary; M2 is IN PROGRESS, not closed; PR-08 is NOT STARTED (next); PR-09, PR-10 and M3–M4 remain NOT STARTED; no model is selected, the smoke-test model is not a selection, and prompt v1 remains a draft | Met (§22.1, §22.5) |
+| 21 | PR-07's completion is recorded with verifiable evidence (PR #19, merge commit, CI, tests, the fake and live acceptance), with its two behaviour changes traced to §16, §14.3, §14.5 and §5.7, and its PR-08, PR-09 and PR-10 boundary; M2 is IN PROGRESS, not closed; PR-08 was then NOT STARTED (next); PR-09, PR-10 and M3–M4 remain NOT STARTED; no model is selected, the smoke-test model is not a selection, and prompt v1 remains a draft | Met (§22.1, §22.5) |
+| 22 | PR-08 comparison round 1 is recorded with verifiable evidence (PR #21 and its head, required checks, both primary reports, the comparison outcome), as `MODEL_SELECTION_FAILED` with every failed gate as recorded; PR #21 remains open and not merged; PR-08 is BLOCKED and M2 is IN PROGRESS and halted at Stage E; PR-09, PR-10 and M3–M4 remain NOT STARTED; no model is selected and prompt v1 remains a draft | Met (§22.1, §22.5) |
+| 23 | D-97 is added once and refines D-93: the documentation exception and the D1 and D2 diagnostics are bounded, separately authorized and run once; no gate, timeout, dataset, prompt, schema, application configuration, model or official baseline changes; the D0 evidence preservation is recorded as a completed, separately authorized task; no diagnostic is recorded as authorized or performed | Met (§20.6, §20.9, §22.5, §23) |
 
 ### 27.5 Remaining empirical questions (§24.B)
 
 These are settled only by the defined M0 and M2 experiments on the reference hardware:
-1. **The selection outcome**: which of the two eligible candidates is selected, or `MODEL_SELECTION_FAILED`, with its digest and licence as recorded.
+1. **The selection outcome**: which of the two eligible candidates is selected, or `MODEL_SELECTION_FAILED`, with its digest and licence as recorded. Comparison round 1 ended with `MODEL_SELECTION_FAILED` (§22.5). Any later round requires an approved Stage E amendment (§20.9).
 2. **The final prompt v1**: the final revision `v1-rN`, its immutable prompt manifest identifier, the recorded development-set refinement history, and the final-gate outcome.
 3. Measured latency (median, p95, max) and the timeout rate.
 4. Whether Ollama accepts Pydantic `$defs`/`$ref` and enforces `maxLength`.
@@ -4304,7 +4522,7 @@ These are settled only by the defined M0 and M2 experiments on the reference har
 
 CIS v0.3, including the D-95 prompt-lifecycle clarification, is consistent with the Behavioural Specification and the Technical Design Specification. Every cross-reference, decision ID, version string, candidate reference and prompt-lifecycle statement was verified as described in §27.1. Neither parent document was modified.
 
-CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0), PR-02 (the M1 static-analysis core), PR-03 (the M1 review domain and pipeline, with its corrective PR #7), PR-04 (the M1 API and OpenAPI contract), the observability correction (PR #11), PR-05 (the minimal frontend vertical slice, with its corrective PR #14), PR-06 (the M2 Ollama integration) and PR-07 (the M2 improvement backend) are completed, and M1 is closed; see "Current status" below. M2 is in progress.
+CIS v0.3 is the implementation contract for V1 and contains no unresolved design-level implementation choices. The M0/Q7 baseline verification is complete: the tool and runtime baseline is empirically verified (Q7 PASS, §8.9), by an experiment whose code was removed (§22.2). **Production implementation proceeds through the D-96 workflow**, PR-00 to PR-10 (§22.3–22.6). PR-00, PR-01 (the production M0), PR-02 (the M1 static-analysis core), PR-03 (the M1 review domain and pipeline, with its corrective PR #7), PR-04 (the M1 API and OpenAPI contract), the observability correction (PR #11), PR-05 (the minimal frontend vertical slice, with its corrective PR #14), PR-06 (the M2 Ollama integration) and PR-07 (the M2 improvement backend) are completed, and M1 is closed; see "Current status" below. M2 is in progress and halted at §20.9 Stage E, because PR-08's comparison round 1 ended with `MODEL_SELECTION_FAILED`.
 
 The remaining model-specific and prompt-specific outcomes are controlled empirical results to be obtained through the explicitly defined M0/M2 evaluation process.
 
@@ -4319,6 +4537,7 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
   - The minimal frontend vertical slice followed through PR-05 (PR #13). Its corrective PR #14 added the missing basic partial-result indication, fixed a polling-lifecycle defect, and added the missing regression tests. PR-05's acceptance closed M1 (§22.5).
   - The Ollama version was recorded (PR #16), and the Ollama integration followed through PR-06 (PR #17), whose byte-limit correction was made before the merge. It opened M2 (§22.5).
   - The improvement operation and its §14.3 validation followed through PR-07 (PR #19), which enabled improvement by default as §16 specifies (§22.5).
+  - PR-08's comparison round 1 (the open PR #21) ended with `MODEL_SELECTION_FAILED`. The Ollama server logs were then preserved (D0), and D-97 defined the Stage E diagnostic phase (§20.9, §22.5).
 - **Current state:**
   - `main` is protected (§22.3). `commits`, `backend` and `frontend` are required checks. The repository is public.
   - **PR-00 is COMPLETED** and merged (PR #1, merge commit `b72b3eb`, `commits` CI PASS). Its branch was deleted locally and remotely.
@@ -4336,5 +4555,9 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
   - **M1 is COMPLETED.** A review with the real static tools and the fake AI works through the browser.
   - **PR-06 (M2 Ollama integration) is COMPLETED** and merged (PR #17, merge commit `95aa3a7`; `commits`, `backend` and `frontend` CI PASS), after PR #16 recorded Ollama `0.40.2`. Its branch was deleted locally and remotely. It added the Ollama provider, request-time budgeting, the prompt renderer and the v1 draft prompts. The live provider was exercised only with a temporary smoke-test model.
   - **PR-07 (M2 improvement backend) is COMPLETED** and merged (PR #19, merge commit `7954d61`; `commits`, `backend` and `frontend` CI PASS). Its branch was deleted locally and remotely. It added the improvement operation and its §14.3 validation; improvement follows `IMPROVEMENT_ENABLED` (default `true`, §16). The live provider was exercised only with a temporary smoke-test model, and the frontend does not render improved code until PR-09.
-  - **M2 is IN PROGRESS.** It closes only with PR-08.
-  - **PR-08 (prompts, evaluation and model selection) is NOT STARTED (next).** PR-09, PR-10, M3 and M4 are NOT STARTED. No model has been selected or evaluated, and prompt v1 remains `status: draft`.
+  - **M2 is IN PROGRESS, halted at §20.9 Stage E.** It closes only with PR-08.
+  - **PR-08 (prompts, evaluation and model selection) is BLOCKED.**
+    - Its comparison round 1 evaluated both eligible candidates and ended with `MODEL_SELECTION_FAILED`.
+    - PR #21 is open and not merged, and its records stay byte-identical.
+    - Only the D-97 documentation exception and diagnostic phase are permitted, and neither D1 nor D2 has been authorized or run.
+    - PR-09, PR-10, M3 and M4 are NOT STARTED. No model has been selected or frozen, and prompt v1 remains `status: draft`.
