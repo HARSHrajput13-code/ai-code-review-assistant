@@ -3154,7 +3154,7 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | M1 vertical slice (PR-02 to PR-05) | Milestone | **COMPLETED.** PR-02 to PR-05 are completed, with the corrective PRs #7, #11 and #14. PR-05's acceptance passed: a review with the real static tools and the fake AI works through the browser (§22.5). |
 | **PR-06 — Ollama integration** (§22.5) | First M2 implementation task | **COMPLETED.** Merged as PR #17 on 2026-10-10 (merge commit `95aa3a7`). Its prerequisite was met by PR #16, which recorded Ollama `0.40.2` in the environment record. Its branch was deleted locally and remotely. Execution record in §22.5. |
 | **PR-07 — Improvement backend** (§22.5) | M2 implementation task | **COMPLETED.** Merged as PR #19 on 2026-10-10 (merge commit `7954d61`). Its branch was deleted locally and remotely. Execution record in §22.5. |
-| **PR-08 — Prompts, evaluation and model selection** (§22.5) | Last M2 implementation task | **BLOCKED.** Comparison round 1 ended with `MODEL_SELECTION_FAILED`. PR #21 is open and not merged, as the PR-08 acceptance requires, and work is stopped pending an approved §20.9 Stage E amendment. Only the D-97 documentation exception and diagnostic phase, and the D-99 corrective restoration of Ollama (§8.8), are permitted. D1 ran once under its one-time authorization and stopped at its first check, with no diagnostic submission; that authorization is consumed. D2 has not been authorized or run. Ollama has drifted from the recorded `0.40.2` and has not been restored (§22.5). PR-08 still includes the model evaluation and selection and the prompt v1 freeze. Execution record in §22.5. |
+| **PR-08 — Prompts, evaluation and model selection** (§22.5) | Last M2 implementation task | **BLOCKED.** Comparison round 1 ended with `MODEL_SELECTION_FAILED`. PR #21 is open and not merged, as the PR-08 acceptance requires, and work is stopped pending an approved §20.9 Stage E amendment. Only the D-97 documentation exception and diagnostic phase are permitted; the one-time D-99 corrective restoration of Ollama (§8.8) has been performed and verified. D1 ran once under its one-time authorization and stopped at its first check, with no diagnostic submission; that authorization is consumed, and a later D1 needs a new one-time authorization. D2 has not been authorized or run. Ollama drifted from the recorded `0.40.2` and was restored to it and verified under D-99 (§22.5); the live-LLM contract tests and the primary evaluation run remain deferred until an approved Stage E amendment. PR-08 still includes the model evaluation and selection and the prompt v1 freeze. Execution record in §22.5. |
 | PR-09, PR-10 | M3 and M4 implementation tasks | **NOT STARTED.** |
 | M2 Ollama, improvement backend, model selection | Milestone | **IN PROGRESS, halted** at §20.9 Stage E after comparison round 1 ended with `MODEL_SELECTION_FAILED`. PR-06 and PR-07 are completed. PR-08 is BLOCKED, and M2 closes only with PR-08 (§22.5). No model has been selected, and prompt v1 is still `status: draft`. The model used for the PR-06 and PR-07 live smoke tests was a temporary test model, not a selection. |
 | M3, M4 | Milestones | **NOT STARTED.** |
@@ -3933,11 +3933,96 @@ The Status column is the execution record and mirrors the §22.1 status table. T
   - **Not established:** the exact version of the running server. Establishing it needs `GET /api/version`, which D-99 step 2 permits once, before Ollama is stopped or changed.
   - **Effect:** no evaluation, comparison run or diagnostic submission ran on a drifted version. D1 stopped at V1 (see the D1 run record).
 - **Corrective restoration (D-99):** prepared under the project owner's explicit instruction, through the documentation exception. Merging D-99 authorizes no restoration step by itself: each step marked *(owner approval)* in §8.8 needs separate approval. The restoration record (§8.8 step 9) is added here.
+- **D-99 restoration record** (historical record; no decision is created). The §8.8 procedure ran on 2026-10-24, one step at a time, each step under the project owner's separate instruction. All times are UTC.
+  - **Evidence location:** the owner-chosen local folder `D:\AI_Code_Review_D99_Restoration\d99-run-20261024T012410Z\`, outside the repository, synced folders and temporary storage.
+    - Each step has its own SHA-256 manifest. No earlier evidence file was rewritten.
+    - The evidence is not committed, because it contains log contents and machine paths.
+    - Manifests:
+      - `EVIDENCE-SHA256SUMS.txt` (steps 1–2): `ed67fc7769c9a09d7a45f8df416d2109ce9fd15e5bd5ea16a4c04c56d511173a`;
+      - `step3-SHA256SUMS.txt`: `d55138ea2afb09bfc4ada443afa5b8a6d7bc9d5ad0535babceca2d9b51649f3c`;
+      - `step4-SHA256SUMS.txt` (attempt 1): `66c5878da5f4853e13be86df4a09a3732730dd8a73349d7ee6a8cd4dd48797cc`;
+      - `installer\attempt-2\SHA256SUMS.txt`: `f1618d637bc7bf4b437b7b8fb715bda928cc3e04871068276f867ec1d3005266`;
+      - `step6\SHA256SUMS.txt`: `3ac16e812551fffa9dbd01638bed2ba670a5524b40e3c49a5920c9c0e5c81c74`;
+      - `step7\SHA256SUMS.txt`: `1d5c95a8869e4ea41f358a5bd5376f06e02a1f3fa324283c6b9b77a7a13c465e`;
+      - `step7\step7-f-SHA256SUMS.txt`: `d5795d66f9b74f971d42bc42b5a2fead5abf02cc669c397047d4ef70fcb55e66`.
+  - **Versions, kept separate:**
+    - **installed version before restoration:** `0.40.6`. The installation metadata reported 0.40.6 (installed 2026-10-19), and so did the latest app-log version entry.
+    - **observed running server version before restoration:** `0.40.6`, from the single step-2 `GET /api/version` at 01:25:33 (HTTP 200, `{"version":"0.40.6"}`).
+    - **restored version:** `0.40.2`, both installed and running (step 7).
+  - **Step 1, log preservation** (01:24): all 13 Ollama logs were copied without stopping Ollama. Each copy matched its snapshot by SHA-256.
+  - **Step 2, current state:**
+    - 0.40.6 executables:
+      - `ollama.exe`: `71d2002d3ae572d5fa8c1d368ce9d1b9a39c7187cf169e8b330c55410bf6c58e`;
+      - `ollama app.exe`: `b1fcf2a2b2451dfbbc1407aa46d0c7941168fbfcd46fdc57cf8a042d1c9ccbbb`;
+      - `unins000.exe`: `752d9b9d01b55fb411bc62449a16a88aeae0747ab341ab07d5a322c97163118b`.
+    - A staged `0.40.10` update was present: 1,661,645,848 bytes, validly signed by Ollama Inc., SHA-256 `051556bec8d51d65a5e81e46aa9c238fff4fff0d47ce164fb25203ae48ed1c99`.
+    - Model manifests exist in two representations, both created on 2026-10-10/11, before the drift. Both were recorded.
+      - The `manifests-v2` files hash to the round-1 digests: `dae161e2…486f4364` for `qwen2.5-coder:7b-instruct-q4_K_M` and `0edcdef3…f168ba0` for `qwen3:4b-instruct-2507-q4_K_M`.
+      - The legacy `manifests` files are `4aaba1ee…3555ef31` and `6214d088…38603054`.
+  - **Step 3, automatic update downloads off:**
+    - The project owner turned the setting off manually in the Ollama settings UI. The before state was not reported. The after state, off, rests on the owner's report; it was not machine-checked.
+    - **Recording erratum:** `step3-settings.json` records `ollama_processes_unchanged_since_step1: false` because of a comparison-order defect in the recording script. The processes listed in that record are identical to step 1's (`step3-erratum.json`). The original record is unchanged.
+  - **Step 4, official installer:**
+    - **Release:** tag `v0.40.2` points to commit `b061384d90ff455462bc32745dd0de479de717a3`. The GitHub asset digest of `OllamaSetup.exe` equals `e78ea4ff…cd5a9e`.
+    - **Release checksum file:** `sha256sum.txt` (SHA-256 `f4c4f203342c7d6d1043d708aebecfc1bde088f961034209a45237196ad195dc`, equal to its own asset digest) lists `./OllamaSetup.exe` with the same digest.
+    - **Attempt 1** (01:35:06–01:38:48): the connection was reset after 757,182,673 of 1,578,560,904 bytes (`curl` exit 56). The partial file's SHA-256 is `71021369cc79df54c3d05d6cf2d46a75f16bd30a17c7bd78c9bb109553becfed`. Its hash mismatch was a step-8 stop. The partial file is kept unmodified and was never executed.
+    - **Owner decision after the stop:** the project owner explicitly authorized one additional step-4 download attempt, a fresh full download with no resume. It installed nothing.
+    - **Attempt 2** (01:41:03–01:46:59) completed. It is 1,578,560,904 bytes, and its SHA-256 `e78ea4ffc8fdc1a0bbcb4f8404c7ee1bd0898ed3a65d9cc08d79eb2235cd5a9e` equals both the asset digest and the `sha256sum.txt` entry.
+      - Its Authenticode signature is valid, from signer `CN=Ollama Inc.` (thumbprint `716CD3BC8C02361431A18F56F98C72DE88066103`), issued by DigiCert G5 CS ECC SHA384 2021 CA1.
+      - It carries the same signing certificate as the staged update.
+  - **Step 5, model files:** no model file or manifest was deleted, moved, replaced or downloaded. Both representations of both candidates were unchanged after step 6 and in step 7.
+  - **Step 6, installation:**
+    - **Before:** the project owner visually confirmed that automatic update downloads were off. The installer was re-verified immediately before use. All 10 live logs were preserved again.
+    - **Quit and install:**
+      - A graceful close request (`taskkill` without `/f`) was sent at 01:55:28, and both Ollama processes exited.
+      - The verified installer then ran interactively, not silently, with an Inno Setup log, from 01:55:30 to 01:56:57.
+      - It exited with code 0. The setup log records "Installation process succeeded." and "Need to restart Windows? No".
+    - **After:**
+      - The installation metadata reports `0.40.2` (installed 2026-10-24).
+      - New executables:
+        - `ollama.exe`: `9eaec399fd941073f8ddfbd56e0447f77fca5c006b26b8b1874a7fb12719b2a0`;
+        - `ollama app.exe`: `687620b77fec130d81a61ef1794db24d11c00727ef77f1e11ad9017d43bbff1f`;
+        - `unins000.exe`: `993e8cf9cce70373fa3d46dc4df7af9fc01edb0d0c89a4f7d56b1b3801e6a08a`.
+      - The installer relaunched the app, which logged version 0.40.2 at 01:56:58.
+      - No upgrade marker was present, and the staged 0.40.10 update was untouched.
+    - **Recording erratum:** `step6-install.json` records the outcome "STOPPED".
+      - That value came from a recording-script defect, not from the installation: a one-element list was unrolled to a string, so the check compared its first character with `0.40.2`.
+      - The record's own facts meet the success condition: finished, exit code 0, metadata `0.40.2`, manifests unchanged.
+      - No D-99 stop condition occurred (`step6-erratum.json`). The original record is unchanged.
+  - **Step 7, verification** (automated checks 02:01–02:02, check (f) recorded at 02:05): all eight checks passed.
+    - (a) The installation metadata reports `0.40.2`.
+    - (b) The app log reports `0.40.2` at the restored start.
+    - (c) `uv run --locked python scripts/check_environment.py` (no `--record`) exited 0 with `OK ollama expected=0.40.2 actual=0.40.2`.
+    - (d) One `GET /api/tags` returned HTTP 200 and listed both candidates with their recorded full digests, compared by digest and not by name.
+    - (e) Both manifest representations of both candidates equal their step-2 hashes.
+    - (f) The project owner visually confirmed that automatic update downloads are still off, and shared a screenshot.
+      - The screenshot was reviewed but not preserved, because it contains personal account details; only its hash is in the evidence.
+      - The state rests on the owner's visual confirmation. Indirectly, after the relaunch the update checker logged "New update available" without "update already downloaded".
+    - (g) All 10 live logs were preserved again, after the verification requests. Each copy matched its snapshot.
+    - (h) Run with `RUN_LIVE_LLM` and `OLLAMA_MODEL` unset, on commit `a9cc0ad`, whose tree is identical to `main` at `c0fa005`. The repository was unchanged by the runs.
+      - `uv run --locked pytest`: exit 0, 1078 passed, 1 skipped (the opt-in live test).
+      - `uv run --locked pytest tests/contract`: exit 0, 70 passed.
+      - Both runs showed the same 3 warnings, a third-party `stevedore` deprecation notice.
+    - Besides the step-2 request, the only Ollama requests were the `GET /api/version` made by `check_environment.py` and the one `GET /api/tags`. No model call was made.
+  - **D-82 status after restoration:**
+    - Items 1 and 6 remain exempted by D-99.
+    - The default test suite and tool contract tests passed after restoration (step 7 (h)).
+    - The environment record was verified (step 7 (c)) and not rewritten.
+    - Lockfiles and fixtures are unaffected.
+    - The live-LLM contract tests and the primary evaluation run remain **deferred, not completed**, until an approved Stage E amendment resumes evaluation.
+  - **Limitations:**
+    - The automatic-download setting rests on the owner's visual confirmation, with no machine check. Its state before step 3 is unknown.
+    - When `0.40.2` became `0.40.5` remains unevidenced (Ollama drift record).
+    - The rotated 0.40.5-era app logs survive only in the step-1 copies.
+    - Other Ollama settings shown in the settings UI are outside D-99 and were not changed.
+    - The staged `0.40.10` update is still on disk. Removing it needs separate owner approval. Until then, automatic update downloads must stay off.
+    - Two recording errata (steps 3 and 6) are script defects. Both original records are unchanged.
+  - **Outcome:** Ollama is restored to the recorded `0.40.2` and verified. The D-99 restoration is complete when this record is merged.
 - **Current status:**
   - PR-08 is **BLOCKED**, PR #21 is open and not merged, and M2 is halted (§20.9 Stage E).
-  - Only the D-97 documentation exception and diagnostic phase, and the D-99 corrective restoration, are permitted.
-  - The D1 authorization is consumed. D2 has not been authorized or run.
-  - Ollama has not been restored.
+  - The one-time D-99 corrective restoration has been performed and verified. Only the D-97 documentation exception and diagnostic phase remain permitted.
+  - The D1 authorization is consumed. A later D1 needs a new, separate one-time authorization. D2 has not been authorized or run.
+  - Ollama is at the recorded `0.40.2`. The live-LLM contract tests and the primary evaluation run remain deferred until an approved Stage E amendment.
   - No model is selected or frozen, and prompt v1 is still `status: draft`.
 
 **PR-09: Complete UI behaviour.**
@@ -4668,7 +4753,7 @@ This audit was performed afresh on the complete document, after the final correc
      - PR-08 is BLOCKED, PR #21 is open and not merged, and M2 is IN PROGRESS and halted at §20.9 Stage E.
      - PR-09, PR-10 and M3–M4 are NOT STARTED.
      - D1 ran once and stopped at V1 with no diagnostic submission; its authorization is consumed. D2 has not been authorized or run.
-     - Ollama has not been restored. No model is selected, and prompt v1 is `status: draft`.
+     - At the time of this check, Ollama had not been restored; check 20 supersedes this. No model is selected, and prompt v1 is `status: draft`.
    - **Mechanical checks repeated** on the complete document:
      - 155 headings, counted as in checks 9–18, and 127 distinct `§` references, 0 unresolved. Both are unchanged from check 18, because D-99 adds no heading and cites only existing sections;
      - the §23 register has 99 rows, D-01 to D-99, with no gaps, no duplicates and no unregistered ID; D-99 is registered exactly once;
@@ -4678,6 +4763,32 @@ This audit was performed afresh on the complete document, after the final correc
      - the D-82 upgrade policy list;
      - the §22.5 comparison round 1 record, including the D0 record;
      - every decision row except the D-82 status cell.
+20. **D-99 restoration record** (2026-10-24; no new decision; version unchanged at 0.3):
+   - **What changed:**
+     - §22.5: the D-99 restoration record after the D-99 note, and the current-status list.
+     - §22.1: the PR-08 row's D-99, D1 and Ollama status.
+     - This §27: this check, a §27.2 row and criterion 26. Marked as historical: check 19's restoration status line, the §27.2 D-99 row's restoration statement and criterion 25's restoration clause.
+     - §27.6: an execution-history line and the PR-08 status lines.
+   - **Source of truth:** every value is taken from the D-99 evidence records and manifests in the owner-chosen evidence folder. Before recording, all eight manifests were re-verified, with every entry matching.
+     - Nothing was inferred where the evidence is silent. The unknown step-3 before state and the unevidenced start of the drift are stated as such.
+     - The screenshot's personal details are not recorded.
+   - **Decision consistency:**
+     - D-97, D-98 and D-99 are unchanged.
+     - The two recording errata are recorded as script defects, separately from the installation outcome, and the original records are unchanged.
+     - Attempt 1's hash mismatch is recorded as a step-8 stop, followed by the owner's separate decision to authorize one more download attempt.
+     - No D-82 obligation is described as complete when it is deferred or exempted.
+     - No gate, baseline, environment record, dataset, prompt or round-1 record changes.
+     - No D1, D2, comparison round or official evaluation is authorized.
+   - **Status consistency:**
+     - PR-08 is BLOCKED, PR #21 is open and not merged, and M2 is IN PROGRESS and halted at §20.9 Stage E.
+     - Ollama is at the recorded `0.40.2` and verified.
+     - The D1 authorization is consumed, and a later D1 needs a new one-time authorization. D2 has not been authorized or run.
+     - The live-LLM contract tests and the primary evaluation run remain deferred.
+   - **Mechanical checks repeated** on the complete document:
+     - headings and distinct `§` references are unchanged from check 19, with 0 unresolved;
+     - the §23 register still has 99 rows, D-01 to D-99, with no unregistered ID;
+     - the only active versions are unchanged;
+     - nothing outside §22.1, §22.5 and §27 changed.
 
 ### 27.2 Results by domain
 
@@ -4705,7 +4816,8 @@ This audit was performed afresh on the complete document, after the final correc
 | **Stage E diagnostic phase (D-97)** | §20.6, §20.9 Stage E and the D-97 paragraph, §22.5 PR-08 acceptance, §23 D-93 and D-97, §0.5 | Consistent. D-97 refines D-93 without adding a route to selection. During the halt, only the documentation workflow for a CIS amendment is permitted. D1 (development set, unchanged `v1-r0`, each case once per model, no warm-up) and D2 (synthetic inputs only; B0 and pre-approved, verified, recorded and restored Ollama server settings) each need separate owner authorization and run once. Verification items V1–V4 name their round-1 reference evidence. Comparisons A–C, the B0 restoration checks R1–R9, the lifecycle-request rules and the stop rules agree with the register row and the scope summary. No gate, timeout, dataset, prompt, schema, application configuration, model or official baseline changes, and B0 is not the official baseline. |
 | **Provider calls within a scheduled submission (D-98)** | §20.9 D-98 paragraph, §23 D-97 and D-98, §7.3, §9.4, D-41, §0.5 | Consistent. A scheduled diagnostic submission is one case-level submission through the real review pipeline. Its provider calls are only those §7.3, §9.4 and D-41 already permit: at most four, including each operation's one permitted schema-validation retry. They are constituent calls of the submission, not extra submissions, warm-ups or script-initiated retries. No script-level retry is permitted. `AI_OUTPUT_RETRY_COUNT` and Category A are unchanged, and every D-97 restriction is unchanged. |
 | **Implementation status (PR-08 comparison round 1 record)** | §22.1 status table, §22.5 Status column, PR-08 documentation exception and comparison round 1 record | Consistent. Comparison round 1 ended with `MODEL_SELECTION_FAILED`: `qwen2.5-coder:7b-instruct-q4_K_M` failed C1, C3, C4, P1 and P3, and `qwen3:4b-instruct-2507-q4_K_M` failed C3, C4 and P1, as recorded. PR #21 (head `e7c171a`) is open and not merged, and its records stay byte-identical. PR-00 to PR-07 are COMPLETED, M0 and M1 are COMPLETED, PR-08 is BLOCKED, and M2 is IN PROGRESS and halted at Stage E. PR-09, PR-10 and M3–M4 are NOT STARTED. The disclosed development-set diagnosis and the D0 evidence preservation are recorded as history. At the time of this row, neither D1 nor D2 had been authorized or run; the D-99 row supersedes this for D1. No model is selected or frozen, and prompt v1 is `status: draft`. |
-| **Corrective Ollama restoration (D-99), D1 run and drift records** | §8.8 D-82 policy and the D-99 paragraphs, §20.9 halt rule, §20.10, §21.1, §21.4, §22.1, §22.5, §23 D-82 and D-99, §0.5 | Consistent. The restoration reinstates the recorded `0.40.2`. It is distinguished from a D-82 upgrade, from D1 and D2, and from a Stage E round. Each D-82 item is classified explicitly: items 1 and 6 are exempted by D-99; the default test suite and tool contract tests are required after restoration with `RUN_LIVE_LLM` unset; the environment record is verified (`ollama` `OK` at `0.40.2`), not rewritten; lockfiles and fixtures are unaffected; the live-LLM contract tests and the primary run are deferred, not completed, until an approved Stage E amendment. None is described as complete, and no primary run happens during the halt. The procedure covers evidence preservation (including one pre-restoration `GET /api/version`), the update setting, the verified official installer, model files, the separately approved install, verification, and a stop rule with no further installation or recovery under D-99. Recovery needs a separate owner decision, and the staged update is never used. It permits only `GET /api/version` and `GET /api/tags`, and no model call. The D1 and next-round prerequisites are stated separately. The environment record, the round-1 reports and the D-82 list are unchanged. The drift is recorded factually, with its unevidenced start stated as such. D1 is recorded as run once, stopped at V1 with no submission, and its authorization consumed. D2 has not been authorized or run. Ollama has not been restored, and D-99 authorizes no D1, D2, candidate, prompt refinement, comparison round or PR #21 change. |
+| **Corrective Ollama restoration (D-99), D1 run and drift records** | §8.8 D-82 policy and the D-99 paragraphs, §20.9 halt rule, §20.10, §21.1, §21.4, §22.1, §22.5, §23 D-82 and D-99, §0.5 | Consistent. The restoration reinstates the recorded `0.40.2`. It is distinguished from a D-82 upgrade, from D1 and D2, and from a Stage E round. Each D-82 item is classified explicitly: items 1 and 6 are exempted by D-99; the default test suite and tool contract tests are required after restoration with `RUN_LIVE_LLM` unset; the environment record is verified (`ollama` `OK` at `0.40.2`), not rewritten; lockfiles and fixtures are unaffected; the live-LLM contract tests and the primary run are deferred, not completed, until an approved Stage E amendment. None is described as complete, and no primary run happens during the halt. The procedure covers evidence preservation (including one pre-restoration `GET /api/version`), the update setting, the verified official installer, model files, the separately approved install, verification, and a stop rule with no further installation or recovery under D-99. Recovery needs a separate owner decision, and the staged update is never used. It permits only `GET /api/version` and `GET /api/tags`, and no model call. The D1 and next-round prerequisites are stated separately. The environment record, the round-1 reports and the D-82 list are unchanged. The drift is recorded factually, with its unevidenced start stated as such. D1 is recorded as run once, stopped at V1 with no submission, and its authorization consumed. D2 has not been authorized or run. At the time of the D-99 pass, Ollama had not been restored; the row below supersedes this. D-99 authorizes no D1, D2, candidate, prompt refinement, comparison round or PR #21 change. |
+| **D-99 restoration record** | §22.5 D-99 restoration record and current status, §22.1 PR-08 row, §27.6, D-99 evidence manifests | Consistent. Ollama is restored to the recorded `0.40.2`, and all step-7 checks (a)–(h) passed. The installed version before restoration (`0.40.6`), the observed running server version before restoration (`0.40.6`) and the restored version (`0.40.2`) are recorded separately. Attempt 1's truncated download is recorded as a step-8 stop, followed by the owner's separate decision to authorize one more attempt, and attempt 2's size, SHA-256 and signature are verified. The step-3 and step-6 errata are recorded as script defects, separately from the actual outcomes. The live-LLM contract tests and the primary evaluation run remain deferred. No D1, D2 or evaluation is authorized. |
 
 ### 27.3 Consistency with the parent specifications
 
@@ -4740,7 +4852,8 @@ This audit was performed afresh on the complete document, after the final correc
 | 22 | PR-08 comparison round 1 is recorded with verifiable evidence (PR #21 and its head, required checks, both primary reports, the comparison outcome), as `MODEL_SELECTION_FAILED` with every failed gate as recorded; PR #21 remains open and not merged; PR-08 is BLOCKED and M2 is IN PROGRESS and halted at Stage E; PR-09, PR-10 and M3–M4 remain NOT STARTED; no model is selected and prompt v1 remains a draft | Met (§22.1, §22.5) |
 | 23 | D-97 is added once and refines D-93: the documentation exception and the D1 and D2 diagnostics are bounded, separately authorized and run once; no gate, timeout, dataset, prompt, schema, application configuration, model or official baseline changes; the D0 evidence preservation is recorded as a completed, separately authorized task; no diagnostic was then recorded as authorized or performed (criterion 25 supersedes this for D1) | Met (§20.6, §20.9, §22.5, §23) |
 | 24 | D-98 is added once and clarifies D-97 only: the provider calls within a scheduled submission are those §7.3, §9.4 and D-41 already permit; no new model call, script-level retry, setting, gate or timeout change; the C1 denominator question is not addressed; the unavailability of the D0 copies is recorded without changing the §22.5 D0 record | Met (§20.9, §23, §27) |
-| 25 | D-99 is added once and applies D-82 to the one-time corrective restoration of Ollama to the recorded `0.40.2`. The restoration is distinguished from an upgrade, a diagnostic and a Stage E round. Every D-82 item is classified as satisfied, required after restoration, deferred until Stage E resumes, or explicitly exempted by D-99. None is described as complete when it is only deferred or exempted. The procedure, its separate approvals, its stop rule (no further installation or recovery under D-99) and the separate D1 and next-round prerequisites are defined. No baseline, gate, environment record or round-1 record changes. The drift and the D1 run are recorded factually. Ollama is not recorded as restored, and no D1, D2 or comparison round is authorized | Met (§8.8, §20.9, §22.5, §23) |
+| 25 | D-99 is added once and applies D-82 to the one-time corrective restoration of Ollama to the recorded `0.40.2`. The restoration is distinguished from an upgrade, a diagnostic and a Stage E round. Every D-82 item is classified as satisfied, required after restoration, deferred until Stage E resumes, or explicitly exempted by D-99. None is described as complete when it is only deferred or exempted. The procedure, its separate approvals, its stop rule (no further installation or recovery under D-99) and the separate D1 and next-round prerequisites are defined. No baseline, gate, environment record or round-1 record changes. The drift and the D1 run are recorded factually. Ollama was then not recorded as restored (criterion 26 supersedes this), and no D1, D2 or comparison round is authorized | Met (§8.8, §20.9, §22.5, §23) |
+| 26 | The D-99 restoration is recorded in §22.5 from the evidence records, with the installed, observed-running and restored versions kept separate. The record covers each step's outcome, including attempt 1's stop and the owner's decision for one further attempt, the installer and executable hashes, the signature, and every step-7 check. Both errata are recorded as script defects without changing the original records, and the evidence's limitations are stated. No personal data from the screenshot is recorded. The deferred D-82 items stay deferred, and no D1, D2 or evaluation is authorized | Met (§22.1, §22.5, §27.6) |
 
 ### 27.5 Remaining empirical questions (§24.B)
 
@@ -4778,6 +4891,7 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
   - The improvement operation and its §14.3 validation followed through PR-07 (PR #19), which enabled improvement by default as §16 specifies (§22.5).
   - PR-08's comparison round 1 (the open PR #21) ended with `MODEL_SELECTION_FAILED`. The Ollama server logs were then preserved (D0), and D-97 defined the Stage E diagnostic phase (§20.9, §22.5). D-98 then clarified which provider calls a scheduled diagnostic submission may contain (§20.9).
   - D1 then ran once and stopped at its first check (V1), with no diagnostic submission. Ollama had drifted from the recorded `0.40.2` through unapproved automatic updates. D-99 defined the one-time corrective restoration (§8.8, §22.5).
+  - Ollama was then restored to the recorded `0.40.2` under D-99, and all step-7 checks passed (§22.5, D-99 restoration record).
 - **Current state:**
   - `main` is protected (§22.3). `commits`, `backend` and `frontend` are required checks. The repository is public.
   - **PR-00 is COMPLETED** and merged (PR #1, merge commit `b72b3eb`, `commits` CI PASS). Its branch was deleted locally and remotely.
@@ -4799,8 +4913,8 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
   - **PR-08 (prompts, evaluation and model selection) is BLOCKED.**
     - Its comparison round 1 evaluated both eligible candidates and ended with `MODEL_SELECTION_FAILED`.
     - PR #21 is open and not merged, and its records stay byte-identical.
-    - Only the D-97 documentation exception and diagnostic phase, and the D-99 corrective restoration, are permitted. Each restoration step marked *(owner approval)* needs separate approval.
-    - D1 ran once under its one-time authorization and stopped at V1 with no diagnostic submission; that authorization is consumed. D2 has not been authorized or run.
-    - Ollama has drifted from the recorded `0.40.2` and has not been restored (§22.5).
+    - Only the D-97 documentation exception and diagnostic phase are permitted. The one-time D-99 corrective restoration has been performed and verified.
+    - D1 ran once under its one-time authorization and stopped at V1 with no diagnostic submission; that authorization is consumed, and a later D1 needs a new one-time authorization. D2 has not been authorized or run.
+    - Ollama is at the recorded `0.40.2` again, verified by all step-7 checks (§22.5). The live-LLM contract tests and the primary evaluation run remain deferred until an approved Stage E amendment.
     - The D0 copies of the Ollama server logs are no longer available, and the round-1 server log has rotated out of Ollama's log folder. D-97's V2 and V3 therefore cannot be verified against round 1 (check 18).
     - PR-09, PR-10, M3 and M4 are NOT STARTED. No model has been selected or frozen, and prompt v1 remains `status: draft`.
