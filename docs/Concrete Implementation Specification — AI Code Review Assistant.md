@@ -4344,7 +4344,7 @@ The Status column is the execution record and mirrors the §22.1 status table. T
     - When `0.40.2` became `0.40.5` remains unevidenced (Ollama drift record).
     - The rotated 0.40.5-era app logs survive only in the step-1 copies.
     - Other Ollama settings shown in the settings UI are outside D-99 and were not changed.
-    - The staged `0.40.10` update is still on disk. Removing it needs separate owner approval. Until then, automatic update downloads must stay off.
+    - The `0.40.10` update had previously been staged, as recorded above. A follow-up inspection on 2026-11-01 found the `Ollama\updates_v2` folder empty. The time and cause of its removal could not be established. No restoration, deletion or Ollama-setting change was performed under D-100 P0. Any later change to update staging needs separate owner authorization. Automatic update downloads must stay off.
     - Two recording errata (steps 3 and 6) are script defects. Both original records are unchanged.
   - **Outcome:** Ollama is restored to the recorded `0.40.2` and verified. The D-99 restoration is complete when this record is merged.
 - **Current status:**
@@ -5150,6 +5150,19 @@ This audit was performed afresh on the complete document, after the final correc
      - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4, and the Ollama baseline is the recorded `0.40.2`;
      - the frozen constants are unchanged.
    - **Byte-identical**, compared with the text before this pass: everything outside §0.5, §10.1, §20.9, §22.1, §22.5, §23, §24.A and §27. In particular, D-97's documentation-exception paragraph, the §22.5 comparison round 1 record and D1 run record, and every decision row other than the new D-100 row and the D-84 and D-95 status cells.
+22. **Staged-update status correction** (2026-11-02; no new decision; version unchanged at 0.3):
+   - **What changed:**
+     - §22.5: the limitation in the D-99 restoration record that said the staged `0.40.10` update was still on disk.
+     - This §27: this check.
+   - **Recorded facts:**
+     - The update had previously been staged, and a follow-up inspection on 2026-11-01 found the `Ollama\updates_v2` folder empty.
+     - The time and cause of the removal could not be established.
+     - No restoration, deletion or Ollama-setting change was performed under D-100 P0, and any later change to update staging needs separate owner authorization.
+     - The requirement that automatic update downloads stay off is kept.
+   - **History preserved:** the §22.5 Ollama drift record, the D-99 step records and the dated statement in check 19 are records of their time and are unchanged. The corrected statement supersedes them for the current state. The D-99 procedure in §8.8 and the D-100 Part 13 pre-run check are unchanged.
+   - **Status consistency:** the current-status lists in §22.1, §22.5 and §27.6 say nothing about the staged update, so none changed. No model is selected, and prompt v1 is `status: draft`.
+   - **Mechanical checks repeated** on the complete document: 155 headings and 128 distinct `§` references, 0 unresolved, and the §23 register has 100 rows, D-01 to D-100, with no gaps, no duplicates and no unregistered ID.
+   - **Byte-identical**, compared with the text before this pass: everything outside §22.5 and §27, and in §22.5 everything except this one limitation.
 
 ### 27.2 Results by domain
 
