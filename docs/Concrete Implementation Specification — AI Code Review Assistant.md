@@ -77,6 +77,7 @@ The changes are integrated throughout the body. These tables are only an index.
 | **D-97** | Stage E diagnostic phase after comparison round 1 ended with `MODEL_SELECTION_FAILED`: a documentation-only exception during the PR-08 halt, and two bounded, separately authorized diagnostics (D1 on the development set, D2 on synthetic inputs). No gate, timeout, dataset, prompt, model, application configuration or official baseline changes. | §20.6, §20.9, §22.1, §22.5 |
 | **D-98** | Clarification of D-97: a scheduled diagnostic submission is one case-level submission through the real review pipeline, and the provider calls already permitted by §7.3, §9.4 and D-41 (including each operation's one permitted schema-validation retry) are constituent calls of that submission, not additional submissions, warm-ups or script-initiated retries. No behaviour, setting or D-97 restriction changes. | §20.9 |
 | **D-99** | One-time corrective restoration of Ollama to its recorded baseline `0.40.2`, after unapproved drift (to `0.40.5`, then `0.40.6`). How each D-82 obligation applies to a restoration, a fixed restoration and verification procedure, and the record of the drift. No baseline, environment record, round-1 record, gate or evaluation change; no D1, D2 or comparison round. | §8.8, §20.10, §21.1, §21.4, §22.1, §22.5 |
+| **D-100** | Stage E (b), route b1: common refinement of the four prompt templates on the development set, aimed at shorter, well-formed output. A `v1-r0` reference run, then at most three revisions (P1), a timing-feasibility check (P2), and a read-only comparator. Narrow exceptions E1–E4 to the halt rule, the D-84/D-95 lifecycle (E2: pre-selection common refinement and shared-repository recording, for this route only), the §22.3 branch-to-PR workflow and the PR-08/PR #21 protections. Effective only on the owner's manual merge; it authorizes no execution, and every action needs its own one-time authorization. No gate, timeout, dataset, model, setting, schema, application or evaluation code changes; no comparison round. | §10.1, §20.9, §22.1, §22.5, §24.A |
 
 **v0.2 changes (D-40 to D-66), still in force**
 
@@ -1489,7 +1490,7 @@ required_min_output:
 ### 10.1 Assets and lifecycle (D-61, D-84, D-95)
 
 - Prompts are files under `ai/prompts/<version>/`: `review_system.md`, `review_user.md`, `improve_system.md`, `improve_user.md`, and `MANIFEST`. `AI_PROMPT_VERSION` (default `v1`) selects the version. The files are loaded once at startup; a missing file is a startup failure.
-- **Lifecycle.** Model selection and prompt refinement are separate phases, so that model quality and prompt quality are never confounded (D-84). The refinement and final-gate procedure is fixed by D-95:
+- **Lifecycle.** Model selection and prompt refinement are separate phases, so that model quality and prompt quality are never confounded (D-84). The ordinary post-selection refinement and final-gate procedure is fixed by D-95. The only pre-selection route is the D-100 Stage E (b) route shown after it:
 
   ```text
   prompt v1 draft = revision v1-r0  (the common comparison snapshot, identical for every candidate)
@@ -1518,9 +1519,26 @@ required_min_output:
   ```
 
   - The refined prompt is **not** used to re-rank candidates. Candidates are compared only on the comparison snapshot `v1-r0`.
+  - **D-100 Stage E (b) pre-selection route (exception E2.A, §20.9).** This route is not part of the ordinary lifecycle above. It follows comparison round 1's `MODEL_SELECTION_FAILED` outcome and applies only to D-100 route b1:
+
+    ```text
+    comparison round 1: MODEL_SELECTION_FAILED (no model selected)
+            │
+            ▼
+    D-100 P0 and P1: v1-r0 reference run, then common refinement before selection, v1-r1 to at most v1-r3
+            │  (frozen development set ONLY; the same revision for every eligible candidate; no ranking, selection or rejection)
+            ▼
+    D-100 P2: timing-feasibility check of the first P1-passing revision on two synthetic inputs (no further refinement)
+            │  pass
+            ▼
+    proposed round-2 comparison snapshot only
+            │  P3 (comparison round 2) needs its own amendment and authorization; D-100 does not authorize it
+            ▼
+    any model later selected: the ordinary lifecycle above, in full (post-selection refinement ─► final gate ─► freeze)
+    ```
 
 - **Prompt-refinement rules (D-95).**
-  1. **Scope.** Refinement happens only *after* a model has been selected, and only on the **frozen development set** (§20.6), which stays disjoint from Dataset v1.
+  1. **Scope.** Refinement happens only *after* a model has been selected, and only on the **frozen development set** (§20.6), which stays disjoint from Dataset v1. The sole exception to the "after" requirement is D-100 route b1 (exception E2.A, below). The development-set requirement has no exception.
      - Dataset v1 is **never** used for refinement and is **never** modified. After selection, its only use is the final-gate attempts.
      - Revisions after a failed final-gate attempt MUST be motivated and validated on the development set alone. No Dataset v1 case, expectation or per-case output may be copied into a prompt or into the development set.
      - Refinement changes **only the prompt template files** (`review_system.md`, `review_user.md`, `improve_system.md`, `improve_user.md`), within §10.2–10.5 and `SYSTEM_PROMPT_MAX_BYTES` (§9.7).
@@ -1543,6 +1561,11 @@ required_min_output:
      - A failed attempt may only be followed by further **development-set** refinement, which produces a new recorded revision, before the next attempt.
      - If the third attempt fails, the comparison round ends with **`MODEL_SELECTION_FAILED`** (§20.9 Stage E). The only next steps are the Stage E approved amendments. Gates are never relaxed.
   5. **Freeze after PASS.** `MANIFEST` is switched to `status: frozen`, and its file-hash lines MUST equal those of the passing revision. The model-selection record is then completed (§20.10).
+
+  - **Lifecycle and recording exception for Stage E route b1 (D-100, exception E2, §20.9).** E2 applies to D-100 route b1 only:
+    - **Pre-selection common refinement (E2.A).** The common draft prompt may be refined on the frozen development set before model selection and before comparison round 2. The same revision is evaluated for every eligible candidate, no candidate receives a different prompt, and the refinement never ranks, selects or rejects a model. D-100 P0, P1 and P2 govern the procedure. It does not replace or satisfy the post-selection lifecycle above.
+    - **Recording (E2.B).** For D-100's pre-selection common revisions only, `run_eval.py` creates the revision records and development-set reports inside D-100's isolated local worktree, where they stay uncommitted. D-100's external evidence bundle is the authoritative record until the project owner separately decides whether to record it in the shared repository.
+    - **Everything else.** All other D-95 safeguards, including development-set isolation, immutable revision records, traceability, owner approval and final-gate requirements, remain in force. E2 does not repeal or weaken D-84 or D-95. Outside this exception, both apply unchanged.
 
   - `MANIFEST` has a first line `status: draft` or `status: frozen`, followed by `sha256  filename` lines.
   - **Draft**: files may change, and the hash lines are regenerated by `scripts/export_contracts.py`. A draft version is allowed only with `APP_ENV ∈ {development, test}`. In `production`, startup fails.
@@ -2705,7 +2728,7 @@ C1 ≥ 95 %     C2 = 100 %     C3 = 100 %     C4 ≥ 90 %     AGG ≥ 80 %     T
 
 **Estimator calibration (A17).** If the maximum token-estimate ratio exceeds 1.0 for any case, `BYTES_PER_TOKEN_ESTIMATE` is not conservative for that model. The finding is recorded, and the constant or the source defaults are corrected by a **CIS amendment** (a new decision ID) **before** freeze. The startup check and the boundary cases are then re-run. It is never tweaked ad hoc.
 
-### 20.9 Model selection (D-68 to D-71, D-83, D-84, D-91, D-93, D-94, D-97, D-98)
+### 20.9 Model selection (D-68 to D-71, D-83, D-84, D-91, D-93, D-94, D-97, D-98, D-100)
 
 **Objective (D-68), verbatim:**
 
@@ -2811,6 +2834,7 @@ The top-ranked candidate is the **provisional winner**. It must pass **stability
 - **Authorization.** This decision does not start either diagnostic. Each runs only after the project owner separately authorizes it, and D2 also requires a benchmark plan approved by the project owner. Each runs **once**; a repeat needs a new owner approval.
 - **During the halt**, the only permitted repository activity is the documentation exception in the §22.5 PR-08 acceptance.
 - **Corrective restoration during the halt (D-99).** The only change to the reference machine's Ollama installation that the halt permits, besides an authorized diagnostic, is the one-time corrective restoration of Ollama to `0.40.2` (§8.8), under its separately approved steps. It is not a diagnostic, an evaluation or a Stage E next step, and it is recorded through the documentation exception. Category A's "no upgrade" applies to the diagnostics; the restoration happens outside them.
+- **Stage E route b1 during the halt (D-100).** Besides the documentation exception, the halt permits only the activities enumerated in D-100 exception E1 ("Stage E route b1 (D-100)" below), including P0, P1 and P2 execution, each only under its own separate, one-time authorization. Every other restriction of the halt stays in force.
 
 **Category A: never changed in either diagnostic.**
 - the application's backend configuration, including every `OLLAMA_*` application configuration key;
@@ -2953,6 +2977,310 @@ Recorded, not compared: layers offloaded, buffer sizes and free GPU memory at lo
 | Questions examined (informational only) | Whether `qwen2.5-coder:7b-instruct-q4_K_M`'s `DOES_NOT_PARSE` rejections share the double-escaping pattern observed for `qwen3:4b-instruct-2507-q4_K_M`; run-to-run variation; whether the development set shows review misses; whether long output on good code recurs | Whether decoding is limited by CPU-resident layers or KV-cache placement; whether a ~5 KB review and improvement could finish within the unchanged 300 s / 180 s. Synthetic inputs predict no gate. |
 
 **Not authorized by D-97:** a prompt revision or a new comparison snapshot; adopting a runtime setting; a new candidate or any download; changes to the PR-08 code or to PR #21; a correction of any round-1 result; a rerun of Stages A–E; comparison round 2. Each needs its own separately approved amendment with a new decision ID, or a separate owner decision where this specification provides for one.
+
+**Stage E route b1 (D-100).** This is the approved Stage E (b) amendment for route b1. Its parts are numbered 1–15 and cited as "D-100 Part n".
+
+- **Effect.** Exceptions E1–E4 (D-100 Part 4) take effect only when the project owner manually merges the CIS amendment that adds this subsection, through the documentation exception (§22.5). An unmerged amendment has no effect.
+- **No execution by itself.** D-100 authorizes no experiment, prompt edit, worktree, local commit, comparator or runner work, or model call. Every action listed in D-100 Part 15 needs its own separate, one-time owner authorization. P0, P1, P2, the P1 comparator, the P2 runner, the live-LLM contract tests and P3 stay unauthorized until their respective requirements are met.
+- **Permission, authorization and execution are distinct.**
+  - **Permission:** D-100's manual merge makes the activities enumerated in E1 permissible during the halt. It executes nothing.
+  - **Authorization:** each operation still needs its own separate, one-time owner authorization (D-100 Part 15).
+  - **Execution:** no operation may run until that authorization is given, and each runs only within it.
+- **Restrictions unchanged.** Every existing restriction, including those of D-84, D-93, D-95, D-97, D-98 and D-99, stays in force except the exact exceptions D-100 states. Official evaluation, model selection, P3 and any follow-on experiment remain separately gated.
+- **Narrow exception to D-84/D-95 sequencing.** D-84 and D-95 place prompt refinement after model selection. Route b1 refines the common draft prompt before model selection and before comparison round 2, which only exception E2.A (D-100 Part 4) permits. The exception is limited to this route. It does not replace or satisfy the post-selection lifecycle ("After selection (D-95)" below), and outside this route D-84 and D-95 apply unchanged.
+
+**D-100 Part 1: decision summary.**
+1. **Route.** M2 remains halted after comparison round 1 (`MODEL_SELECTION_FAILED`). D-100 takes Stage E next step (b) as Stage E names it: "improving the common draft prompt **on the development set** and running a new comparison round for *all* candidates against a new comparison snapshot".
+2. **Deferred:** a D2 repeat, route b2 (context size) and route b3 (timeouts).
+3. **Single factor:** the text of the four prompt templates.
+4. **Phases:**
+   - **P0:** offline validation, with no model calls.
+   - **P1:** a `v1-r0` reference run, then at most three revisions (`v1-r1`–`v1-r3`) on `dev-v1`, judged by a read-only comparator.
+   - **P2:** a timing-feasibility check run by a standalone runner.
+5. **P3 (comparison round 2)** remains a later gate that D-100 does **not** authorize.
+   - **P3 snapshot prerequisite.** Before comparison round 2 is authorized or executed, its separate CIS amendment must explicitly reconcile §10.1's existing statement that candidates are compared only on comparison snapshot `v1-r0` with the new comparison-round-2 snapshot. That amendment must identify and freeze the new snapshot, including its prompt revision and manifest identifier, dataset manifest, and applicable candidate/evaluation configuration, and update every affected lifecycle cross-reference. No P3 comparison run may begin until this amendment is approved and the applicable separate execution authorization is issued.
+   - This is a future requirement only. It does not authorize or prepare P3.
+
+**D-100 Part 2: evidence and its limitations.**
+
+| Source | Status | Use |
+|---|---|---|
+| Round-1 model-selection record (PR #21 branch, `e7c171a`) | Official; `MODEL_SELECTION_FAILED` | Motivation. Its general observations (double-escaped `improved_code`; medium-case timeouts) may inform revision authoring. |
+| D1 and D2 diagnostics | Not summarized here | The D1 and D2 diagnostic artifacts are retained outside the repository and are not summarized here. D-100 does not use individual diagnostic outcomes as baselines, expectations, official gate results, ranking evidence or model-selection evidence. Recording individual diagnostic outcomes in the CIS requires a separate owner decision under D-97. |
+| Round-1 V2/V3 equivalence | Not verifiable (§27.1 check 18) | No equivalence is claimed |
+
+**D-97 constraint, carried forward:** no D1/D2 per-case output, no Dataset v1 content and no P1 model output is ever copied into a prompt, a dataset or an expectation file.
+
+**D-100 Part 3: scope.**
+- **Changed:** only `ai/prompts/v1/review_system.md`, `review_user.md`, `improve_system.md` and `improve_user.md`. Changes must stay within §10.2–10.5, keep the §10.3 shared preamble, keep the placeholders unchanged, and stay within `SYSTEM_PROMPT_MAX_BYTES` (9,000). `MANIFEST` is regenerated by `scripts/export_contracts.py` and stays `status: draft`.
+- **Unchanged:**
+  - **Models and order:** `qwen2.5-coder:7b-instruct-q4_K_M` (digest `dae161e2…f4364`), then `qwen3:4b-instruct-2507-q4_K_M` (digest `0edcdef3…8ba0`).
+  - **Generation and context settings:** seed 42, temperature 0, `think: false`, `num_ctx` 16,384, `num_predict` ≤ 8,192.
+  - **Retry and timeouts:** `AI_OUTPUT_RETRY_COUNT` 1, `OLLAMA_TIMEOUT_SECONDS` 180, `REVIEW_TIMEOUT_SECONDS` 300.
+  - **Runtime:** KV-cache and all Ollama server settings; Ollama `0.40.2`.
+  - **Code and contracts:** the application, schema, evaluation and test code; the §9.7 constants.
+  - **Data and gates:** Dataset v1, `dev-v1` and its expectation files, the source limits, and every gate and threshold.
+  - **Existing rules:** the D-97, D-98 and D-99 requirements.
+- **Capabilities preserved.** All six required product capabilities are kept, and so is complete improved code. Revisions must not limit issue counts below the schema maximum, remove required fields, or request diff-only or partial code.
+- **Revision goals:**
+  1. Shorter review output, with detection and the three-part explanations kept.
+  2. `improved_code` as plain code with real newlines, never escaped a second time.
+  3. Interfaces and intended behaviour preserved, as far as §14.3 can establish.
+  4. No loss of coverage or required fields.
+- **Experimental design relative to D-84 and D-95.** Revisions are **pre-selection, common** revisions, permitted only by exception E2.A:
+  - They are identical for every candidate.
+  - They are never used to rank, select or reject a model.
+  - They are not final-gate attempts.
+  - Their numbering continues from `v1-r0`, which is never overwritten (prompt manifest identifier `06e536ad…`, commit `e7c171a`).
+  - A revision that passes P1 and P2 becomes only a *proposed* round-2 comparison snapshot.
+
+**D-100 Part 4: governance exceptions.** These are operative only after D-100's CIS amendment is manually merged. None of these activities is permitted outside D-100. Each exception applies only to D-100's workflow, and each activity still requires its separate authorization (D-100 Part 15).
+
+- **E1: Narrow exception to the halt rule (K1).** The halt rule (D-97, above) permits only the §22.5 PR-08 documentation exception. D-100 excepts from that rule **solely** these activities:
+  1. creating and using the isolated worktree and local branch in D-100 Part 6;
+  2. editing only the four prompt templates, and regenerating `MANIFEST`;
+  3. local-only commits containing only the five permitted paths (E4);
+  4. temporary, uncommitted staging of evaluation reports and revision records under `docs/evaluation/` in the isolated worktree;
+  5. copying out and SHA-256-verifying the external evidence bundle;
+  6. developing and offline-testing the read-only P1 comparator and the standalone P2 runner, outside the repository;
+  7. **P0 execution (D-100 Part 7):** the specified offline preparation, manifest, test and startup-validation checks, with no model calls;
+  8. **P1 reference execution (D-100 Part 8):** the two `v1-r0` model-runs on `dev-v1`, with the existing `run_eval.py` procedure;
+  9. **P1 refinement execution (D-100 Part 8):** up to three common prompt revisions, `v1-r1` through `v1-r3`, evaluated on `dev-v1` for both models, subject to the exact Part 8 criteria and workload limits;
+  10. **Prescribed P1 warm-ups (D-100 Part 8):** up to eight discarded warm-up reviews in total, exactly one per model-run, using only the existing fixed `WARM_UP` source. These are permitted solely because the unmodified `run_eval.py` requires them. They are excluded from the development-set results and every acceptance criterion, and they count within P1's existing ceilings of 72 review submissions and 288 provider attempts. No other warm-ups are authorized;
+  11. **P1 comparator execution (D-100 Parts 8 and 10):** execution of the separately authorized, hash-pinned, read-only comparator against the immutable reference and candidate reports and their input evidence manifests;
+  12. **P2 execution (D-100 Part 11):** execution of the separately authorized, hash-pinned P2 runner against the two specified synthetic inputs, with exactly the permitted four submissions, one per model and input, no warm-ups and no retries. No submission is repeated or re-run. The provider attempts inside a submission stay those D-98 permits, within Part 11's limit of 16.
+
+  **Steps these items include.** Only the steps the cited D-100 parts prescribe:
+  - **Items 8 and 9:** the tool's run preconditions, its unload lifecycle and metadata requests at run start (none of them a generation), and `record-revision`.
+  - **Items 8, 9 and 12:** the pre-run checks in D-100 Part 13.
+  - **Item 5:** writing and verifying the input and final evidence manifests (D-100 Parts 9 and 11).
+  - **Item 11:** verifying its inputs and writing only `comparator/result.json`.
+
+  **Separate authorization for each operation (D-100 Part 15).** Item 7: Part 15 item 2 for `v1-r0`, item 5 for each revision. Item 8, and the warm-ups of its model-runs: item 4. Item 9, and the warm-ups of its model-runs: item 6. Item 11: item 6. Item 12: item 8. The comparator and runner must first pass their own Part 15 items 3 and 7.
+
+  **E1 authorizes nothing else.** It covers no other implementation, repository, runtime, prompt, dataset, evaluation-code, schema, gate or infrastructure change. Every restriction not expressly excepted here stays in force. In particular:
+  - Merging D-100 or amending E1 executes nothing.
+  - There are no additional model calls, warm-ups, repeated cases or retries beyond the D-100 limits.
+  - No D-97, D-98 or D-99 safety, privacy, workload or stop condition is relaxed.
+  - There is no application-code, schema, evaluation-code, dataset, model, runtime, timeout or gate change.
+  - There is no P3 or official comparison-round execution.
+  - No model selection, ranking or adoption results from P1 or P2.
+
+  **Relationship to D1 and D2.** D-100 is a new Stage E (b) route. Items 7–12 are permitted only within it. They do not retroactively change the D1 or D2 procedures, their historical results, or D-97's restrictions on them, including its prohibition of warm-ups and other model calls in those diagnostics.
+- **E2: Narrow D-84/D-95 lifecycle and recording exception (K2).** E2 has two parts, E2.A (sequencing) and E2.B (recording), and applies to D-100 route b1 only.
+  - **E2.A: Pre-selection common refinement.** D-84 and D-95 place prompt refinement after model selection (§10.1 rule 1). For D-100 Stage E (b), route b1 only, the common draft prompt may be refined on the frozen development set before model selection and before comparison round 2. This excepts that sequencing rule for this route wherever it is stated, including the §20.9 overview and "After selection (D-95)", the §22.5 PR-08 rule, the §23 D-84 and D-95 rows and the §24.A prompt-lifecycle row. Requirements:
+    - The same prompt revision is evaluated for every eligible candidate, and no candidate receives a different prompt.
+    - The refinement must not rank, select or reject a model.
+    - The procedure remains governed by the D-100 P0, P1 and P2 requirements (D-100 Parts 7, 8 and 11).
+    - It does not replace or satisfy the normal post-selection D-95 refinement lifecycle.
+    - All other D-95 safeguards, including development-set isolation, immutable revision records, traceability, owner approval and final-gate requirements, remain in force.
+  - **E2.B: Evidence recording.** D-95 (§10.1 rule 2, with §20.10) records revisions in the repository under `docs/evaluation/prompt-revisions/`. For this experiment only:
+    - the unmodified `run_eval.py` workflow creates reports and revision records **inside the isolated worktree**;
+    - those artifacts **remain uncommitted**;
+    - **authoritative record:** the external evidence bundle (D-100 Part 9). For each revision it holds the revision record, both model reports, the input and final evidence manifests, the comparator result where applicable, and verified SHA-256 hashes. It remains authoritative for this workflow until the owner separately decides whether to record it in the shared repository.
+  - **Limits.** E2 applies only to D-100's authorized workflow. It does not repeal or weaken D-84 or D-95, and it does not generally replace D-95's recording requirements. Outside this D-100 route b1 exception, D-84 and D-95 continue to apply unchanged.
+- **E3: Classification as an evaluation activity (K3).**
+  - Local prompt refinement and its evaluation commits under D-100 are a narrowly scoped **evaluation activity**. They are not an implementation task under §22.3–22.6 or CONTRIBUTING's branch-to-PR workflow.
+  - No implementation PR is created for the temporary prompt revisions, and the local branch is never pushed or merged.
+  - The CIS amendment introducing D-100 itself follows the normal governance process and is merged manually by the owner.
+  - CONTRIBUTING states that the CIS prevails where they disagree, so no CONTRIBUTING edit is needed.
+- **E4: Narrow exception for local experimental prompt edits; PR-08 and PR #21 protections (K4).**
+  - **What is authorized:** only the temporary local changes in D-100 Part 3's scope, in the isolated worktree. This is a narrow exception to the restriction on changing prompt assets during the halt (D-97 Category A), limited to this workflow once D-100 takes effect.
+  - **What a local commit may contain:** exactly `ai/prompts/v1/review_system.md`, `review_user.md`, `improve_system.md`, `improve_user.md` and `MANIFEST`. Commits stay in the local repository and are never pushed or merged.
+  - **What is not authorized:** modifying the PR #21 branch (`feat/m2-model-evaluation`), the PR on GitHub, or the PR-08 implementation; pushing or merging any experimental revision.
+  - **Shared object store:** the worktree's metadata, the local branch reference and the commit objects reside in the shared `.git`, because worktrees share one repository store. Only those direct consequences of E1 items 1 and 3 are permitted. They grant no permission to change any other branch, ref, file, or the main checkout's working tree.
+
+**D-100 Part 5: local grants** (each under E1–E4 and its own authorization).
+- **G-A: Prompt refinement (E1.2, E2.A, E4).** Edits are made only to the four templates, plus `MANIFEST` regeneration, in the isolated worktree.
+- **G-B: Local-only prompt commits (E1.3, E3, E4).**
+  - **Why it's needed:** `run_eval.py` (`verify_commit`) refuses to run when anything outside `docs/evaluation/` is uncommitted.
+  - **When:** one commit per revision, after its P0 passes and before its P1 run.
+  - **Where:** on the local branch only. Commit messages follow §22.4.
+  - **Verification before each P1 run:** `git diff --name-only e7c171a..HEAD` lists only the five permitted paths, and `git status` shows changes only under `docs/evaluation/`.
+  - **Recorded for each revision:** the commit SHA, the prompt manifest identifier, and the SHA-256 of all five files.
+- **G-C: Evidence staging and copy-out (E1.4–5, E2.B).** `run_eval.py` writes reports to `docs/evaluation/reports/` and revision records to `docs/evaluation/prompt-revisions/v1-rN/` inside the worktree. These are never committed or pushed, and are copied out per D-100 Part 9.
+
+**D-100 Part 6: locations.** Each location is created only after an existence check shows it does not already exist. If it exists, nothing proceeds.
+
+| Purpose | Path |
+|---|---|
+| Isolated worktree, created at `e7c171a` | `D:\AI_Code_Review_StageE\worktrees\d100-b1-e7c171a` |
+| Local branch in that worktree | `chore/d100-b1-local-prompt-refinement` (never pushed or merged) |
+| P1 evidence | `D:\AI_Code_Review_StageE\evidence\d100-p1\<revision>\` |
+| P2 evidence | `D:\AI_Code_Review_StageE\evidence\d100-p2-run-01\` |
+| P1 comparator | `D:\AI_Code_Review_StageE\tooling\p1-comparator-v1\` |
+| P2 runner | `D:\AI_Code_Review_StageE\tooling\p2-runner-v1\` |
+
+- **Main checkout and PR #21:** never modified.
+- **Worktree cleanup:** only under the existing rule (removed only if clean, never with `--force`). It holds uncommitted evidence, so it is retained until the owner decides otherwise.
+
+**D-100 Part 7: P0, preparation and validation (no model calls).** For `v1-r0`, steps 2–4 run in the clean worktree. For each new revision, all steps run before its local commit:
+1. **Diff check:** only the four templates and `MANIFEST` differ from the previous revision.
+2. **Manifest check:** `test_v1_is_a_draft_whose_manifest_matches_its_files` passes.
+3. **Offline test suite:** the full suite passes with `RUN_LIVE_LLM` unset, using the existing `.venv` interpreter (no dependency synchronization). This includes, in `tests/unit/ai/test_prompt_assets.py`: `test_each_system_prompt_has_the_preamble_and_schema_within_the_cap`; both "fixed text fits 300 bytes" tests; both worst-case budget tests; and the delimited-block tests.
+4. **§9.7 startup validation:** construct the application context, without the server lifespan, with `APP_ENV=development`, `AI_PROVIDER=ollama` and each model tag. This contacts no service.
+
+A failure means no commit, no revision ID and no P1 run.
+
+**D-100 Part 8: P1, development-set refinement.**
+
+*Procedure and order of operations.*
+- **Reference (`v1-r0`)**, at `e7c171a`:
+  1. Run both models with `--revision v1-r0` (model order, seed 42, `dev-v1`, `--purpose refinement`).
+  2. `record-revision --revision v1-r0`.
+  3. Copy out and SHA-256-verify both reports and the revision record.
+  4. Write and verify `input-evidence-manifest.json`.
+  5. Write and verify `final-evidence-manifest.json`. There is no comparator output for `v1-r0`.
+- **Revision n (n ≤ 3)**, at its local commit:
+  1. Run both models with `--revision v1-rn`.
+  2. `record-revision --revision v1-rn`.
+  3. Copy out and SHA-256-verify both reports and the revision record.
+  4. Write, finalize and verify `input-evidence-manifest.json`.
+  5. Run the comparator, which reads only the immutable reports and the input evidence manifests of `v1-rn` and `v1-r0`.
+  6. Verify the comparator result's hash.
+  7. Write and verify `final-evidence-manifest.json`.
+- **Preconditions each run enforces:** the environment record matches, including hardware and OS; the laptop is on mains power; the prompt files match `MANIFEST`; `DEV_MANIFEST` verifies; the report does not already exist.
+- **At run start** the tool may send unload lifecycle requests (`keep_alive: 0`, at most one per resident model), and metadata requests (`/api/tags`, `/api/show`, `/api/ps`). None of these is a generation.
+
+*Warm-ups.* Each model-run submits one **discarded warm-up review** of the tool's fixed `WARM_UP` source through the full pipeline. It is not a scheduled submission. It is excluded from the case results by review ID, and never counts toward any criterion. The tool is unmodified. `WARM_UP` is P1's only input outside `dev-v1`.
+
+*Workload* (confirmed against the tool's code):
+
+| Item | Count |
+|---|---|
+| Reference scheduled submissions (2 × 8) | 16 |
+| Revision scheduled submissions (3 × 2 × 8) | ≤ 48 |
+| Warm-up reviews (1 per model-run × ≤ 8) | ≤ 8 |
+| P1 review submissions | ≤ 72 |
+| Provider attempts (≤ 4 per submission, warm-ups included; D-98) | **≤ 288** |
+| Unload lifecycle requests | ≤ 16 |
+| Script retries or repeated cases | 0 |
+
+*Criteria.* All criteria must pass **for both models**. They are computed only by the P1 comparator (D-100 Part 10) from the immutable reports.
+- **A. Detection.** For each model and each case, with matching and evaluation exactly as in `scripts/evaluation.py` at `e7c171a`:
+  - An issue matches a planted line if start − 2 ≤ line ≤ end + 2; an issue without a location never matches.
+  - Categories match exactly. Thresholds are unchanged.
+  - Two requirements: (1) **every** applicable check in `per_case[*].properties` (C1, C2, C3, C4, N1, N2, N3, N4) is `true`; and (2) no check that was `true` in that model's `v1-r0` report is `false` in the revision's report.
+  - The report's aggregate `verdict` is informational only. Reference results never become expectations, and `min_severity` is not added.
+- **B. Review-output reduction.** R = the sum, over the 8 cases, of `eval_count` from the per-call record with `operation = review` (the final `AI_ANALYSIS` attempt). Improvement tokens are kept separate.
+  - Required, for each model: all 8 reviews `SUCCEEDED` with review attempt = 1 in both reports, and R(revision) ≤ ⌊0.70 × R(v1-r0)⌋.
+  - The threshold is fixed and never changed after results are seen.
+- **C. Improvement completeness.**
+  - `dev_good_queue` passes with `NOT_NEEDED` or `AVAILABLE`. Every other case requires `AVAILABLE`.
+  - Any `IMPROVED_CODE_INVALID`, `AI_OUTPUT_INVALID`, improvement timeout, dependency skip or other non-`AVAILABLE` outcome fails the revision, and each is reported by its recorded code.
+  - The report gives only the generic `IMPROVED_CODE_INVALID`. No specific §14.3 reason is claimed unless an authorized, attributable record supports it. Nothing is changed to recover reason detail.
+- **D. Timeouts.** Zero review timeouts: no `REVIEW_TIMEOUT` on `AI_ANALYSIS`, whether failed or deadline-skipped. Improvement timeouts are reported separately, and any required improvement timeout fails the revision.
+- **E. Progression.**
+  - Revisions run in order, with at most three.
+  - The first revision that passes A–D for both models proceeds to P2. No later revision is created, and revisions are never ranked or compared subjectively.
+  - If `v1-r3` fails, or any run stops, P1 ends and the results go to the owner.
+  - Stopped or void runs consume their IDs and are reported in full.
+  - `v1-r0` has no pass condition. If its run stops or is void, P1 cannot proceed.
+- **Comparator dependency.** No pass or fail decision is made until the comparator is available, hash-pinned and verified.
+
+**D-100 Part 9: external evidence bundle (the authoritative record under E2.B).** Contents of each revision folder:
+
+| Artifact | Source | Stage written |
+|---|---|---|
+| `reports/<run-id>.json` and `.md` for **both** models | Copied from the worktree's `docs/evaluation/reports/` | 1 |
+| `revision-record/`: the four templates, `MANIFEST` and `revision.json` | Copied from the worktree's `docs/evaluation/prompt-revisions/v1-rN/` | 1 |
+| `input-evidence-manifest.json` | Written after copy-out | 1 |
+| `comparator/result.json` | Comparator output (candidate revisions only) | 2 |
+| `final-evidence-manifest.json` | Written last | 3 |
+
+- **Stage 1: `input-evidence-manifest.json`** (created before any comparator execution):
+  - It records the revision ID, prompt manifest identifier, local commit SHA (`e7c171a` for `v1-r0`) and the SHA-256 of the five prompt files.
+  - For each comparator input artifact (both model reports, their Markdown versions, and every file of the revision record), it records the run ID, model name and digest, report type, relative filename and SHA-256.
+  - **Report types:** `primary-dev-report` (the first model in model order, the one referenced by `revision.json`), `supplemental-dev-report` (the second model), `markdown-report`, `revision-record`.
+  - It contains **no** comparator output and no hash of one.
+  - It is finalized, and every listed hash re-verified, **before** the comparator starts.
+  - It is the **only** manifest the comparator reads.
+- **Stage 2: comparator execution** (candidate revisions only), per D-100 Part 10. Its output is written to `comparator/result.json`.
+- **Stage 3: `final-evidence-manifest.json`** (created after the comparator, or directly after stage 1 for `v1-r0`):
+  - It records the SHA-256 of `input-evidence-manifest.json`, and the comparator output's path and SHA-256 (type `comparator-result`).
+  - It repeats the identities and hashes of both model reports, the revision record, the prompt manifest identifier and the local commit.
+  - It is finalized only after every included artifact exists and its hash has been verified.
+  - The comparator never reads or modifies it.
+- **Rules:**
+  - Both model reports must be present and bound to the same revision ID and identifier. Neither may be omitted.
+  - Every copy is SHA-256-verified against its worktree file before the next step.
+  - The bundle contains no source or generated code. The reports hold only counts, categories, lines, scores and outcomes; the revision record holds prompt text.
+  - Recording any of it in the shared repository needs a separate owner decision.
+
+**D-100 Part 10: P1 comparator.** A standalone, **read-only** tool, outside the repository. Its development and offline verification need their own authorization. It must:
+- **Read:** only the immutable `run_eval.py` JSON reports and the `input-evidence-manifest.json` files of the candidate revision and of `v1-r0`. It never reads or modifies `final-evidence-manifest.json`.
+- **Validate identities:** dataset `dev-v1` with a matching manifest hash; the same model tag and digest per pair; the expected `prompt_revision` and `prompt_manifest_sha256`; seed 42; the identical eight case IDs; every artifact hash equal to its input evidence manifest.
+- **Reject** missing, mismatched, malformed or incomplete evidence, reporting the error. It never passes such evidence silently.
+- **Compute criteria A–D exactly as in D-100 Part 8,** for each model, plus the combined verdict across both models.
+- **Write** only a sanitized `comparator/result.json` with metrics, criterion outcomes, failures and the hashes of its inputs, and no source or generated code.
+- **Change nothing:** never modify application code, evaluation code, schemas, prompts, datasets, gates or any manifest.
+- **Be hash-pinned** and pass offline tests on synthetic reports before any use is authorized.
+
+**D-100 Part 11: P2, timing-feasibility check.** Inputs (used unedited, never regenerated or substituted): the two synthetic inputs prepared for D2, in the D2 tooling folder `v1-2026-10-26` outside the repository.
+
+| Input | Size | SHA-256 |
+|---|---|---|
+| `inputs/d2_medium.py` | 4,984 bytes, 186 lines | `6882cdb1516e577949d2049ea4c14f059457a6667ea7e4766e3b9357770f9e20` |
+| `inputs/d2_large.py` | 11,316 bytes, 384 lines | `ac3e21b30894dc46e0827d3fcc6ce968f5d624928af6358ea0404400f02bdc65` |
+
+- **P2 runner.** Standalone, hash-pinned, and offline-tested under separate authorization. It must:
+  - verify both hashes, and SHA-256 disjointness from Dataset v1 and `dev-v1`, before any request;
+  - keep the existing Ollama server running, never stopping or relaunching it;
+  - run the P1-passing revision at its local commit, with the approved models, order, configuration and seed 42;
+  - make exactly one submission per model and input, with no warm-up or retry;
+  - record review and improvement outcomes, attempts, `eval_count`, each operation's duration, the end-to-end duration and the §14.3 reason code;
+  - keep source and generated code out of logs, terminal and files.
+- **Evidence.** After the runner has produced its output, a `final-evidence-manifest.json` binds the outputs with their SHA-256 hashes; the revision ID, prompt manifest identifier and local commit; the model names and digests; and the input hashes. The runner does not consume this manifest.
+- **Workload:** 4 scheduled submissions and at most 16 provider attempts.
+- **Success.** At least one model meets all three conditions on the medium input:
+  1. The review `SUCCEEDED` on attempt 1, with a duration ≤ 180 s.
+  2. The improved code is `AVAILABLE`, passed validation, and was produced on attempt 1 within ≤ 180 s.
+  3. The end-to-end duration is ≤ 240 s.
+- **Other rules.**
+  - Large-input outcomes are recorded in full and are never selection evidence.
+  - If neither model passes, or if the first P1-passing revision fails P2, P2 stops and the results go to the owner. There is no new revision, no P2 repeat and no P3 without a new owner decision.
+
+**D-100 Part 12: total workload.**
+
+| | Scheduled submissions | Warm-ups | Provider attempts (max) |
+|---|---|---|---|
+| P0 | 0 | 0 | 0 |
+| P1 | ≤ 64 | ≤ 8 | ≤ 288 |
+| P2 | ≤ 4 | 0 | ≤ 16 |
+| **Total** | **≤ 68** | **≤ 8** | **≤ 304** |
+
+There are also at most 16 unload lifecycle requests, plus metadata requests, none of them generations.
+
+**D-100 Part 13: safety, stop and reporting rules.**
+- **Before each run:** `scripts/check_environment.py`, without `--record`, reports `OK ollama expected=0.40.2 actual=0.40.2`; the Ollama API version is `0.40.2`; both model digests match; the owner visually confirms that "Auto-download updates" is **OFF**, and the update staging folder is empty; persistent environment variables are unchanged; the G-B diff verification passes.
+- **Stops:** the D-97 class 3 conditions (c) and (d) apply unchanged. The permitted inputs are `dev-v1` plus `WARM_UP` in P1, and the two hashed files in P2. In addition, P1 and P2 stop on: a prompt-identifier or commit mismatch; any change outside the five permitted paths or `docs/evaluation/`; any change to another branch or ref; a copy-out or manifest hash mismatch; a hung case; any Category A difference other than the revision under test.
+- **Not stops:** timeouts and HTTP errors are data and are never retried (D-98).
+- **Outcomes:** each is PASS, FAIL (listing every failed criterion), STOPPED or VOID. Every outcome is reported.
+- **Privacy:** nothing contains source or generated code. Any summary excludes usernames, absolute paths, environment values, device identifiers, generated code and source text.
+- **Nothing is added or weakened:** no retries, relaxed thresholds or gate changes. Diagnostic outcomes are never official evidence.
+
+**D-100 Part 14: record of the K1–K4 resolution.**
+
+| Conflict | Resolved by | Residual limits |
+|---|---|---|
+| **K1:** the halt rule permits only the documentation exception | E1, a narrow, enumerated exception (items 1–12) effective on the manual merge of the D-100 amendment | No other activity is excepted. Each excepted activity still needs its own authorization. |
+| **K2:** D-84 and D-95 place refinement after model selection, and D-95 records belong in the shared repository | E2, the narrow D-84/D-95 lifecycle and recording exception: E2.A permits common pre-selection refinement on route b1, and E2.B makes the external evidence bundle authoritative for D-100 only | D-84 and D-95 are not repealed or weakened, and the post-selection lifecycle is neither replaced nor satisfied. Shared recording remains an owner decision. |
+| **K3:** the §22.3 / CONTRIBUTING branch-to-PR workflow | E3, classifying the work as an evaluation activity, not an implementation task | The D-100 amendment itself follows normal governance. No CONTRIBUTING edit is needed, because the CIS prevails there. |
+| **K4:** D-97 protects PR-08 and PR #21, and prompt assets are frozen in the halt | E4, a narrow local-edit exception limited to five paths on a local, never-pushed branch | The PR #21 branch and PR, the PR-08 implementation, every other branch and ref, and the main checkout are untouched. Shared-object-store effects are limited to E1 items 1 and 3. |
+
+No procedural conflict is left unresolved. Each conflict concerns a CIS-internal rule, and this owner-merged amendment excepts it within the stated limits.
+
+**D-100 Part 15: separate execution authorizations** (each one-time; required after D-100 takes effect).
+1. **D-100 itself:** the CIS amendment adding this subsection (§0.5, §10.1, §20.9, §22.1, §22.5, §23, §24.A and §27), merged manually by the owner. This makes E1–E4 effective and authorizes no execution.
+2. **Worktree creation** at `e7c171a` and the local branch, plus P0 for `v1-r0` (no model calls).
+3. **P1 comparator:** development, hash-pinning and offline verification.
+4. **The P1 reference run** (`v1-r0`): both model-runs, `record-revision`, copy-out, and the input and final evidence manifests.
+5. **Authoring each revision n:** edits, P0 and the local commit.
+6. **The P1 run of each revision n:** both model-runs, `record-revision`, copy-out, the input evidence manifest, comparator execution and the final evidence manifest.
+7. **P2 runner:** development, hash-pinning and offline verification.
+8. **P2 execution**, including its final evidence manifest.
+9. **Shared-repository recording** of any record or result (an owner decision).
+10. **Live-LLM contract tests and P3**, under their own amendment and authorization, subject to the P3 snapshot prerequisite (D-100 Part 1).
 
 **After selection (D-95).** This follows the §10.1 prompt-refinement rules exactly:
 1. Refinement runs on the frozen development set only, recording every revision `v1-rN` immutably.
@@ -3154,7 +3482,7 @@ This refines TDS §50–53. Each milestone ends with its tests passing. §22.1 d
 | M1 vertical slice (PR-02 to PR-05) | Milestone | **COMPLETED.** PR-02 to PR-05 are completed, with the corrective PRs #7, #11 and #14. PR-05's acceptance passed: a review with the real static tools and the fake AI works through the browser (§22.5). |
 | **PR-06 — Ollama integration** (§22.5) | First M2 implementation task | **COMPLETED.** Merged as PR #17 on 2026-10-10 (merge commit `95aa3a7`). Its prerequisite was met by PR #16, which recorded Ollama `0.40.2` in the environment record. Its branch was deleted locally and remotely. Execution record in §22.5. |
 | **PR-07 — Improvement backend** (§22.5) | M2 implementation task | **COMPLETED.** Merged as PR #19 on 2026-10-10 (merge commit `7954d61`). Its branch was deleted locally and remotely. Execution record in §22.5. |
-| **PR-08 — Prompts, evaluation and model selection** (§22.5) | Last M2 implementation task | **BLOCKED.** Comparison round 1 ended with `MODEL_SELECTION_FAILED`. PR #21 is open and not merged, as the PR-08 acceptance requires, and work is stopped pending an approved §20.9 Stage E amendment. Only the D-97 documentation exception and diagnostic phase are permitted; the one-time D-99 corrective restoration of Ollama (§8.8) has been performed and verified. D1 ran once under its one-time authorization and stopped at its first check, with no diagnostic submission; that authorization is consumed, and a later D1 needs a new one-time authorization. D2 has not been authorized or run. Ollama drifted from the recorded `0.40.2` and was restored to it and verified under D-99 (§22.5); the live-LLM contract tests and the primary evaluation run remain deferred until an approved Stage E amendment. PR-08 still includes the model evaluation and selection and the prompt v1 freeze. Execution record in §22.5. |
+| **PR-08 — Prompts, evaluation and model selection** (§22.5) | Last M2 implementation task | **BLOCKED.** Comparison round 1 ended with `MODEL_SELECTION_FAILED`. PR #21 is open and not merged, as the PR-08 acceptance requires, and work toward a new comparison round is stopped. D-100 (§20.9) is the Stage E (b) amendment for route b1; it authorizes no execution and no comparison round. Besides the D-97 documentation exception and diagnostic phase (any further D1 or D2 run needs a new one-time owner authorization), D-100's manual merge permits only the activities enumerated in exception E1, including P0, P1 and P2 execution. Each still needs its own separate one-time authorization, and none may run until that authorization is given. The one-time D-99 corrective restoration of Ollama (§8.8) has been performed and verified. D1/D2 diagnostic artifacts are retained outside the repository and are not summarized in this current-status statement; recording individual diagnostic outcomes requires a separate owner decision under D-97, and these diagnostic activities do not constitute official gate, ranking or model-selection evidence. Ollama drifted from the recorded `0.40.2` and was restored to it and verified under D-99 (§22.5); the live-LLM contract tests and the primary evaluation run remain deferred, and under D-100 they precede P3, which needs its own amendment and authorization. PR-08 still includes the model evaluation and selection and the prompt v1 freeze. Execution record in §22.5. |
 | PR-09, PR-10 | M3 and M4 implementation tasks | **NOT STARTED.** |
 | M2 Ollama, improvement backend, model selection | Milestone | **IN PROGRESS, halted** at §20.9 Stage E after comparison round 1 ended with `MODEL_SELECTION_FAILED`. PR-06 and PR-07 are completed. PR-08 is BLOCKED, and M2 closes only with PR-08 (§22.5). No model has been selected, and prompt v1 is still `status: draft`. The model used for the PR-06 and PR-07 live smoke tests was a temporary test model, not a selection. |
 | M3, M4 | Milestones | **NOT STARTED.** |
@@ -3889,7 +4217,7 @@ The Status column is the execution record and mirrors the §22.1 status table. T
   - Dataset v1 and the development set with their manifests; `run_eval.py`; reports; records (§20.6–20.10);
   - **execution** of the selection: Stages A–E on the comparison snapshot; D-95 refinement with recorded revisions; the final gate (seeds 42/43/44, at most 3 attempts);
   - the prompt v1 freeze; the model-selection and freeze records; the `.env.example` model and digest entries.
-- **Rule:** every candidate uses the same frozen comparison prompt and Dataset v1. Prompt refinement happens only after selection (D-84, D-95).
+- **Rule:** every candidate uses the same frozen comparison prompt and Dataset v1. Normal prompt refinement happens only after selection (D-84, D-95). The sole pre-selection exception is D-100 Stage E (b), route b1 (exception E2.A, §20.9). It is limited to the same common revision being evaluated for every eligible candidate, and it does not replace the ordinary post-selection refinement lifecycle.
 - **Suggested commits:** `feat(prompt): add versioned prompt manifest`, `feat(eval): add frozen dataset infrastructure`, `feat(eval): add evaluation runner`, `feat(eval): add candidate comparison reports`, `feat(eval): add model selection record`, `test(eval): add evaluation gate tests`, `docs(eval): record model selection results`.
 - **Acceptance:** the M2 "done when" passes (§22.1). If the outcome is `MODEL_SELECTION_FAILED`, the records are committed on the branch, the PR is **not** merged, and work stops pending the approved amendment of §20.9 Stage E.
 - **Documentation exception during the halt (D-97).** While work is stopped, the only permitted repository activity is the documentation workflow needed to propose, review and merge a required CIS amendment:
@@ -3899,6 +4227,7 @@ The Status column is the execution record and mirrors the §22.1 status table. T
   4. a merge commit performed manually by the project owner.
 
   Merging is the project owner's approval; an unmerged amendment has no effect. This exception does not authorize application or evaluation-harness implementation; corrective commits, or any change to the PR-08 branch or PR #21; live diagnostics, which need D-97 to be in force and their own separate authorization (§20.9); prompt, schema or dataset changes; model downloads; adopting a runtime setting; or another evaluation round.
+- **Stage E route b1 exception (D-100, E1).** Once D-100 has been manually merged, the halt additionally permits only the activities enumerated in D-100 exception E1 (§20.9): the isolated local worktree and local branch, edits to the four prompt templates with `MANIFEST` regeneration, local-only commits of those five paths, uncommitted staging of evaluation reports and revision records in that worktree, the hash-verified external evidence bundle, development and offline testing of the P1 comparator and P2 runner outside the repository, P0 execution, the P1 `v1-r0` reference and up to three revision runs on `dev-v1` with at most eight prescribed warm-ups, execution of the hash-pinned comparator, and P2 execution on the two synthetic inputs with four submissions and no warm-ups or retries. The merge creates only this permission: each activity needs its own separate, one-time authorization (D-100 Part 15), and none may run until that authorization is given. E1 changes nothing in the documentation exception above, permits no change to the PR-08 branch or PR #21, does not change the D1 or D2 restrictions under D-97, and authorizes no other implementation, evaluation round or execution.
 - **Comparison round 1 record: `MODEL_SELECTION_FAILED`** (historical record only; no decision is created; PR-08 is not completed).
   - **Pull request:** #21, `feat(m2): evaluate models and freeze prompts`, from `feat/m2-model-evaluation` into `main`, head `e7c171acad76b6ec444fbfeaec2525494d2e0a04`. It is **open and not merged**, as the acceptance rule requires. Its required checks `commits`, `backend` and `frontend` pass.
   - **Primary runs:** seed 42, backend commit `928e00a`, Dataset v1 manifest `c0692660…`, prompt revision `v1-r0` (manifest identifier `06e536ad…`), Ollama `0.40.2`, on 2026-10-10 between 21:49 and 22:42 UTC.
@@ -4020,9 +4349,9 @@ The Status column is the execution record and mirrors the §22.1 status table. T
   - **Outcome:** Ollama is restored to the recorded `0.40.2` and verified. The D-99 restoration is complete when this record is merged.
 - **Current status:**
   - PR-08 is **BLOCKED**, PR #21 is open and not merged, and M2 is halted (§20.9 Stage E).
-  - The one-time D-99 corrective restoration has been performed and verified. Only the D-97 documentation exception and diagnostic phase remain permitted.
-  - The D1 authorization is consumed. A later D1 needs a new, separate one-time authorization. D2 has not been authorized or run.
-  - Ollama is at the recorded `0.40.2`. The live-LLM contract tests and the primary evaluation run remain deferred until an approved Stage E amendment.
+  - The one-time D-99 corrective restoration has been performed and verified. Besides the D-97 documentation exception and diagnostic phase, D-100's manual merge permits only the activities enumerated in exception E1 (§20.9), including P0, P1 and P2 execution. Each still needs its own separate one-time authorization, and none may run until that authorization is given. D-100 authorizes no execution and no comparison round.
+  - D1/D2 diagnostic artifacts are retained outside the repository and are not summarized in this current-status statement. Recording individual diagnostic outcomes requires a separate owner decision under D-97. These diagnostic activities do not constitute official gate, ranking or model-selection evidence. Any further D1 or D2 run needs a new, separate one-time authorization.
+  - Ollama is at the recorded `0.40.2`. The live-LLM contract tests and the primary evaluation run remain deferred; under D-100 they precede P3, which needs its own amendment and authorization.
   - No model is selected or frozen, and prompt v1 is still `status: draft`.
 
 **PR-09: Complete UI behaviour.**
@@ -4178,7 +4507,7 @@ Status values: **Active**; **Refined** (still in force, with details changed by 
 | **D-81** | **pylint==4.1.2**, **bandit==1.9.4**. | Rule IDs, CLI options, JSON output and exit codes are part of the contract. These exact stable releases were verified and declare Python 3.14 support. | Active (refines D-53) |
 | **D-82** | Upgrade policy: compatibility check, tests, lockfiles, environment record, fixtures, one deliberate commit. | Pins are a baseline, not a prohibition on change. Upgrades must never be silent. | Active (corrective restoration to the recorded Ollama baseline: D-99) |
 | **D-83** | A licence record for every evaluated model, from `/api/show`. | Licences differ within a model family. This must never be assumed. | Refined by D-91 (only Apache-2.0, or another explicitly accepted permissive licence, is eligible) |
-| **D-84** | Model selection uses a common draft prompt. Prompt refinement happens only after selection, on the development set. Final gate, then freeze. | Prevents confounding model quality with prompt quality (two variables changed at once). | Active (refines D-61; refinement procedure fixed by D-95) |
+| **D-84** | Model selection uses a common draft prompt. Prompt refinement happens only after selection, on the development set. Final gate, then freeze. | Prevents confounding model quality with prompt quality (two variables changed at once). | Active (refines D-61; refinement procedure fixed by D-95). Remains the general rule; its sequencing is narrowly excepted for D-100 route b1 only (D-100 E2.A) |
 | **D-85** | Sanitize, then re-check the semantic invariants. Blank required fields never enter the domain. `improved_code` is not stripped. | Closes the gap where control-character-only text would pass the schema and become blank after sanitization. | Active |
 | **D-86** | SQLite is implemented in V1 and disabled by default. The Null repository is used when it is disabled. | Satisfies BS §5 ("available") and TDS §35 ("optional") without making persistence a dependency. | Active (refines D-16) |
 | **D-87** | Three `size` cases (`small`, `medium`, `near_limit`) in Dataset v1, as performance and boundary measurements. | Exposes context overflow, truncation, timeouts and memory pressure that semantic cases would miss. | Active |
@@ -4186,7 +4515,7 @@ Status values: **Active**; **Refined** (still in force, with details changed by 
 | **D-89** | Response time is documented as an empirical characteristic (median, p95, max, timeout rate, hardware, model, settings). It is not an SLA. | BS §34: expectations are hardware-aware. A universal latency promise would be unfounded. | Active |
 | **D-90** | `AI_CONTEXT_EXCEEDED` error code (pre-flight budget failure, or `done_reason == "length"`). Optional `OLLAMA_MODEL_DIGEST` readiness check. | Context exhaustion is a distinct, actionable condition. The digest check ties the running model to the frozen record. | Active (refines D-65, D-54) |
 
-**Final correction pass (D-91 to D-94), clarification (D-95), implementation governance (D-96), the Stage E diagnostic phase (D-97), its provider-call clarification (D-98) and the corrective Ollama restoration (D-99).**
+**Final correction pass (D-91 to D-94), clarification (D-95), implementation governance (D-96), the Stage E diagnostic phase (D-97), its provider-call clarification (D-98), the corrective Ollama restoration (D-99) and the Stage E route b1 amendment (D-100).**
 
 | ID | Decision | Rationale | Status | Affected sections |
 |---|---|---|---|---|
@@ -4194,11 +4523,12 @@ Status values: **Active**; **Refined** (still in force, with details changed by 
 | **D-92** | Request-time context budgeting: integer `est()`, `available_output_budget`, `actual_output_budget = min(NUM_PREDICT, available)`, the named minimums `REVIEW_MIN_OUTPUT_TOKENS` and `IMPROVE_MIN_OUTPUT_TOKENS(S)`. If the minimum does not fit, the operation is not started (`AI_CONTEXT_EXCEEDED`). Startup validation is kept as an additional guard. | Prompt size varies with the source, static findings, issue count and length, and the prompt version. Startup-only validation cannot guarantee that every actual request fits the context window. | Active (refines D-75) | §9.3, §9.7, §20.3 |
 | **D-93** | If no candidate passes the hard gates, or none passes stability verification, the outcome is `MODEL_SELECTION_FAILED`: no model is selected, everything is recorded, and the only next steps are an approved candidate-set expansion or evaluation or configuration change. | Hard quality and security gates are meaningful only if failure prevents selection. Otherwise the gates can be silently bypassed. | Active (refines D-70, D-71; diagnostic phase defined by D-97) | §10.1, §20.3, §20.9, §20.10, §22, §24.B, §25 |
 | **D-94** | Stability gate: the complete suite on seeds 42, 43 and 44. The full verdict (C1–C4, AGG, T0, P1–P6) must be PASS **independently for each seed**. No averaging. N1–N4 are reported per seed and as a mean, for information only. | A single deterministic seed suits a fair primary comparison. Multiple seeds give practical robustness evidence against output variability. Averaging could hide a critical failure. There is no claim of statistical significance. | Active (refines D-73) | §20.3, §20.7, §20.8, §20.9, §22 |
-| **D-95** | Final prompt-refinement lifecycle. Refinement occurs only on the frozen development set, which is disjoint from Dataset v1; Dataset v1 is never used for refinement or modified. Every prompt revision is recorded immutably (revision ID, exact content, manifest identifier, development-set result, reason, timestamp and run ID). Refinement stops only when the project owner accepts, or explicitly designates, the current revision as the final candidate; this is an approval step, never a gate waiver. Each final-gate attempt evaluates a frozen, distinct revision on seeds 42, 43 and 44 under the unchanged D-94 rule. At most three attempts are allowed; a third failed attempt produces `MODEL_SELECTION_FAILED`. | Makes the prompt lifecycle reproducible and bounded. It prevents uncontrolled or unlimited "retry until it passes" behaviour, test-set contamination, and approval-based bypassing of the hard gates. | Active (refines D-61, D-84; consistent with D-93, D-94) | §0.5, §1.4, §10.1, §20.3, §20.6, §20.9, §20.10, §22, §23, §24.B, §27 |
+| **D-95** | Final prompt-refinement lifecycle. Refinement occurs only on the frozen development set, which is disjoint from Dataset v1; Dataset v1 is never used for refinement or modified. Every prompt revision is recorded immutably (revision ID, exact content, manifest identifier, development-set result, reason, timestamp and run ID). Refinement stops only when the project owner accepts, or explicitly designates, the current revision as the final candidate; this is an approval step, never a gate waiver. Each final-gate attempt evaluates a frozen, distinct revision on seeds 42, 43 and 44 under the unchanged D-94 rule. At most three attempts are allowed; a third failed attempt produces `MODEL_SELECTION_FAILED`. | Makes the prompt lifecycle reproducible and bounded. It prevents uncontrolled or unlimited "retry until it passes" behaviour, test-set contamination, and approval-based bypassing of the hard gates. | Active (refines D-61, D-84; consistent with D-93, D-94). Remains the general rule; its sequencing and shared-repository recording are narrowly excepted for D-100 route b1 only (D-100 E2) | §0.5, §1.4, §10.1, §20.3, §20.6, §20.9, §20.10, §22, §23, §24.B, §27 |
 | **D-96** | Production implementation is executed through bounded GitHub pull requests from dedicated task branches into protected `main`. Commits use Conventional Commits 1.0.0. Each PR has an explicit CIS-traceable scope, required CI and tests, and acceptance criteria (PR-00 to PR-10, mapped to M0–M4). Merge commits preserve each PR's commit history. The Q7 experiment is not production implementation and is never reused as source code. | Makes every change reviewable, traceable to the CIS and reversible. Prevents scope creep and silent baseline changes. Keeps the verified Q7 knowledge separate from the (removed) experimental code. | Active | §0.5, §1.4, §4, §8.8, §8.9, §20.3, §22, §24.A, §25, §27 |
 | **D-97** | After a `MODEL_SELECTION_FAILED` comparison round: (1) during the halt, only the documentation workflow needed to propose, review and merge a CIS amendment is permitted (a `docs/` branch from `main` changing only the CIS, one PR to protected `main` with the required checks, and a manual merge by the project owner); (2) a bounded diagnostic phase may run, each part only with separate owner authorization: D1, a one-time output-format diagnosis submitting each frozen development-set case exactly once per installed model with the unchanged comparison snapshot; and D2, a one-time runtime-performance diagnosis on synthetic inputs, comparing a diagnostic control configuration (B0, the recorded pre-D2 server settings) with temporary Ollama server-setting variants that are pre-approved in a benchmark plan, verified as supported and effective, recorded, applied with one launch method and fully restored; (3) calls whose sole purpose is to control or verify model state are only no-prompt lifecycle requests (unload requests and, for B0 restoration checks, load requests) that generate no text, whose support is established beforehand and each use verified; the first scheduled D1 or D2 diagnostic submission for a model may itself load that model, exactly as the diagnostic's procedure specifies, and remains the diagnostic submission for its scheduled case, not a warm-up; no warm-up generation, repeated diagnostic submission or other model call is permitted; (4) D1 and B0 must match the applicable round-1 reference evidence (the preserved server log for server and model-load settings, the primary reports and the environment record for the Ollama version, the primary reports for model identities and digests), an item being verifiable only where that evidence states its value; any required `MISMATCH` or `UNVERIFIABLE` item stops the diagnostic, subject only to the stated owner-decision exceptions; a D2 variant with an unsupported setting or an unobservable declared effect is void, and D2 continues only after B0 is restored and every restoration check is `MATCH` (Ollama version as authorized, model identities and digests, the B0 startup configuration, the B0 model-load settings and the remaining required checks); undeclared differences, a failed or unverifiable restoration check, lifecycle failures, and environment or safety conditions stop D2, or the affected D1 run, pending an owner decision; intended variant settings are not required to match B0 while that variant runs; (5) B0 is not, and does not replace, the official evaluation baseline (§21.1, §20.7), and tested settings stay diagnostic-only unless adopted through a separate Stage E amendment. No raw generated code is kept, and no result is a gate or selection result. It selects, ranks and freezes nothing; changes no application configuration, model parameter, prompt, schema, dataset, timeout, gate or official baseline; adopts no runtime setting; authorizes no commit outside the documentation workflow; and does not authorize a new comparison round. | Provides evidence for a Stage E amendment without weakening a gate, contaminating Dataset v1, redefining a baseline or changing the runtime silently, and keeps the halt, diagnosis, adoption and selection separate. | Active (refines D-93; consistent with D-72, D-74, D-78, D-82, D-84, D-95, D-96; clarified by D-98) | §0.5, §20.6, §20.9, §22.1, §22.5, §23, §27 |
 | **D-98** | Clarification of D-97. A scheduled diagnostic submission is a single case-level submission through the application's real review pipeline. It may invoke only the provider calls the CIS already permits for one review (§7.3, §9.4, D-41): one review operation and at most one improvement operation, each with at most its one schema-validation retry when the application's existing rules allow it, so at most four provider calls. These are real provider calls, but they are permitted constituent calls of that submission, not additional scheduled submissions, warm-up generations, script-initiated retries or other model calls under D-97. The D1 and D2 procedures and their scripts never repeat or retry a scheduled submission themselves. `AI_OUTPUT_RETRY_COUNT` and every other Category A setting stay unchanged. | D-97 counted model calls per scheduled submission without saying whether the provider calls inside a submission, including the permitted retry, are part of it, while Category A forbids changing `AI_OUTPUT_RETRY_COUNT`. This removes that ambiguity without changing application behaviour, any gate, threshold, timeout, model, prompt, dataset or configuration, or any D-97 restriction. | Active (clarifies D-97; consistent with D-41) | §0.5, §20.9, §23, §27 |
 | **D-99** | One-time corrective restoration of Ollama to its recorded baseline `0.40.2`, after unapproved automatic updates to `0.40.5` and `0.40.6`. The restoration reinstates the recorded version. It is not a new-version adoption (D-82), a D1 or D2 diagnostic, or a Stage E round. D-82 applies item by item. The release-notes check (item 1) and the version commit (item 6) are exempted by D-99, not completed. After restoration, the default test suite and tool contract tests must pass locally with `RUN_LIVE_LLM` unset, and the environment record is verified (its `ollama` check `OK` at `0.40.2`), not rewritten. Lockfiles and fixtures are unaffected. The live-LLM contract tests and the primary evaluation run are deferred, not completed, until an approved Stage E amendment resumes evaluation: the live-LLM tests precede that round's primary runs, and no primary run happens during the halt. Fixed procedure: hash-verified log preservation; a read-only state record, including one pre-restoration `GET /api/version` (no separate approval), whose observed running version is recorded as `UNVERIFIABLE` if no usable version is returned, while the installed version must be established independently or the procedure stops before Ollama is changed; automatic update downloads turned off and verified; the official `v0.40.2` installer verified by SHA-256; no model-file deletion; separately approved installation; post-install verification (`GET /api/version` and `GET /api/tags` only); a stop rule with no further installation or recovery under D-99 (any recovery needs a separate owner decision naming a version whose official installer is digest-verified, and the staged `0.40.10` is never used); and a factual §22.5 record. A later D1 needs that record merged and a new one-time authorization. It changes no baseline, the environment record, no report or round-1 record, and no gate. It authorizes no D1, D2, candidate, prompt refinement, comparison round or PR #21 change. | The drift was a D-82 deviation. Returning to the recorded, tested version is the change that least disturbs the evidence, but whether a restoration is "a change" under D-82 was ambiguous, and a primary evaluation run conflicts with the Stage E halt. D-99 settles both explicitly, without silently waiving an obligation, describing an exempted or deferred one as complete, or treating the drift as if it had not happened. | Active (applies D-82; scoped exception to the §20.9 Stage E halt) | §0.5, §8.8, §20.9, §20.10, §21.1, §21.4, §22.1, §22.5, §23, §27 |
+| **D-100** | Stage E (b), route b1, after comparison round 1 ended with `MODEL_SELECTION_FAILED`: common refinement of the four prompt templates on the frozen development set, aimed at shorter, well-formed output, with models, generation settings, timeouts, runtime, datasets, schemas, application and evaluation code, and every gate unchanged. Pre-selection common revisions are never used to rank, select or reject a model and are not final-gate attempts. P0 validates each revision offline with no model call. P1 runs a `v1-r0` reference and at most three revisions (`v1-r1`–`v1-r3`) on `dev-v1` for both models, through the unmodified `run_eval.py` refinement procedure including its discarded warm-up per model-run (at most 64 scheduled submissions, 8 warm-ups and 288 provider attempts), judged by a separately authorized read-only comparator: every applicable development-set property passes and none regresses against `v1-r0`, review generation tokens fall to at most ⌊0.70 × R(v1-r0)⌋ with every review on attempt 1, every required improvement is `AVAILABLE`, and no review times out, all for both models; the first passing revision proceeds. P2 runs a separately authorized standalone runner once per model on two hash-pinned synthetic inputs (at most 4 submissions and 16 provider attempts), passing when at least one model's medium review and improvement each succeed on attempt 1 within 180 s and the review finishes within 240 s end to end. Evidence is a hash-verified external bundle with a two-stage input and final evidence manifest. Narrow exceptions: E1 to the halt rule for the enumerated activities, including P0, P1 with at most eight prescribed warm-ups, comparator execution, and P2 with no warm-ups or retries, on this new Stage E (b) route, without changing the D1 or D2 restrictions under D-97; E2, the D-84/D-95 lifecycle and recording exception for this route only, under which the common draft prompt may be refined on the frozen development set before model selection and before comparison round 2, with the same revision for every eligible candidate and without replacing or satisfying the post-selection D-95 lifecycle (E2.A), and the external evidence bundle is authoritative with reports and revision records left uncommitted (E2.B), all other D-95 safeguards remaining in force; E3 classifying the work as an evaluation activity outside §22.3; E4 permitting local-only commits of the five prompt paths, never pushed or merged, with no change to PR-08 or PR #21. Individual D1/D2 diagnostic outcomes are not used as baselines or evidence. | A common prompt change is the only lever addressing both round-1 failure modes (malformed improved code and medium-case timeouts) without changing a runtime setting, gate or dataset. Fixing the design, criteria, workloads, evidence handling and exceptions before any run prevents post-hoc judgement, contamination of Dataset v1 and silent scope growth, while every action stays separately authorized. | Active (Stage E (b); narrow exceptions, for this route only, to D-84/D-95 sequencing, D-95 recording and the D-97 halt, with D-84 and D-95 remaining the general rules; consistent with D-93, D-94, D-96, D-98, D-99). Effective on the owner's manual merge; it authorizes no execution, and every action listed in its Part 15 needs a separate one-time authorization | §0.5, §10.1, §20.9, §22.1, §22.5, §23, §24.A, §27 |
 
 ---
 
@@ -4220,7 +4550,7 @@ Ordinary implementation choices are **not** open questions. Every V1 decision fa
 | Generation settings | Temperature 0, `num_ctx` 16384, `num_predict` cap 8192, `think: false`, retry 0–1 (default 1), timeouts 300 s / 180 s | §9, §16, D-41, D-64, D-75, D-77 |
 | Context budget | §9.7 constants; source defaults of 12,000 bytes and 500 lines; prompt caps of 25 and 20; startup validation **and** request-time budgeting with named minimum outputs | §9.7, D-75, D-92 |
 | Persistence | SQLite implemented, disabled by default | §19.2, D-86 |
-| Prompt lifecycle | Common draft `v1-r0` → comparison → selection → recorded refinement on the frozen development set only → owner designation of the final candidate (an approval step, not a waiver) → final gate (seeds 42/43/44, per-seed rule, at most 3 attempts on distinct revisions; a third failure gives `MODEL_SELECTION_FAILED`) → freeze; v2 for any later change | §10.1, §20.9, D-61, D-84, D-95 |
+| Prompt lifecycle | Common draft `v1-r0` → comparison → selection → recorded refinement on the frozen development set only → owner designation of the final candidate (an approval step, not a waiver) → final gate (seeds 42/43/44, per-seed rule, at most 3 attempts on distinct revisions; a third failure gives `MODEL_SELECTION_FAILED`) → freeze; v2 for any later change. **Sole pre-selection exception:** D-100 route b1 (E2.A, §20.9), a bounded pre-selection activity using the same revision for every eligible candidate. It does not replace or satisfy this ordinary post-selection D-95 lifecycle, and D-84 and D-95 remain the general rules outside this exception | §10.1, §20.9, D-61, D-84, D-95, D-100 |
 | Implementation workflow | Fixed now: baseline commit, protected `main`, the §22.3 branch rules, Conventional Commits 1.0.0, the PR plan PR-00 to PR-10, the merge-commit policy and the merge conditions. The *results* of the implementation (model, latency, final prompt, N2, model-specific behaviour) remain empirical (§24.B). | §22, D-96 |
 | Everything else in §3–§19 | As specified | §23 |
 
@@ -4789,12 +5119,43 @@ This audit was performed afresh on the complete document, after the final correc
      - the §23 register still has 99 rows, D-01 to D-99, with no unregistered ID;
      - the only active versions are unchanged;
      - nothing outside §22.1, §22.5 and §27 changed.
+21. **D-100 Stage E route b1 amendment** (2026-10-30, corrected 2026-11-02 for the D-84/D-95 exception, the P3 snapshot prerequisite and the E1 scope; one new decision, D-100; version unchanged at 0.3):
+   - **What changed:**
+     - §0.5: a D-100 row in the change index.
+     - §10.1: the lifecycle introduction, the D-100 pre-selection route after the ordinary lifecycle diagram, one sentence in rule 1, and one bullet after rule 5, the D-100 lifecycle and recording exception (E2).
+     - §20.9: D-100 added to the heading; one halt bullet, "Stage E route b1 during the halt (D-100)"; and the subsection "Stage E route b1 (D-100)", Parts 1–15, after "Not authorized by D-97" and before "After selection (D-95)".
+     - §22.1: the PR-08 row's halt, diagnostic and deferral sentences.
+     - §22.5: the PR-08 rule's direct E2.A cross-reference, one bullet after the D-97 documentation exception, "Stage E route b1 exception (D-100, E1)", and the PR-08 current-status list.
+     - §23: the D-100 row, the status cells of the D-84 and D-95 rows, and the table caption.
+     - §24.A: the Prompt lifecycle row's direct E2.A note and its D-100 reference.
+     - This §27: this check, the §27.2 "Decision IDs" row, the §27.2 D-99 row's D1/D2 sentence, a new §27.2 D-100 row, criterion 27, and the §27.6 execution history and status lines.
+   - **Decision consistency:**
+     - D-100 is Stage E (b) with a single experimental factor, the four prompt templates. No gate, threshold, timeout, dataset, model, generation setting, runtime setting, schema, application code or evaluation code changes.
+     - Exceptions E1–E4 are narrow and enumerated. They take effect only on the owner's manual merge, apply only to D-100's workflow, permit no change to the PR-08 branch or PR #21, and permit no push or merge of experimental revisions. D-84 and D-95 are not repealed or weakened; D-93, D-94, D-97, D-98 and D-99 are otherwise unchanged.
+     - E2 is the narrow D-84/D-95 lifecycle and recording exception. E2.A makes the pre-selection common-refinement exception explicit and limits it to route b1: the same revision for every eligible candidate, no ranking, selection or rejection, and governance by P0, P1 and P2. It does not replace or satisfy the post-selection D-95 lifecycle, and the other D-95 safeguards remain in force. E2.B is the recording exception. D-84 and D-95 remain the general rules outside E2, as §10.1, §20.9, §22.5, §23, §24.A and this §27 consistently state. The §22.5 PR-08 rule and the §24.A Prompt lifecycle row carry direct E2.A cross-references. The general statements of the rule in the §20.9 overview and "After selection (D-95)" are unchanged, and E2.A names them alongside those two.
+     - **P3 snapshot prerequisite.** D-100 Part 1 requires that, before comparison round 2 is authorized or executed, its separate CIS amendment reconcile §10.1's statement that candidates are compared only on comparison snapshot `v1-r0` with the new snapshot, identify and freeze that snapshot, and update every affected lifecycle cross-reference. The §10.1 statement is unchanged, because D-100 does not authorize comparison round 2. The prerequisite is a future requirement only and neither authorizes nor prepares P3.
+     - D-100 authorizes no execution. Every action in its Part 15 needs a separate one-time authorization, and P0, P1, P2, the comparator, the P2 runner, the live-LLM contract tests and P3 remain unauthorized.
+     - E1 enumerates every activity Parts 7–11 require. Items 7–12 add P0 execution, the P1 reference and refinement runs, at most eight prescribed P1 warm-ups counted within the existing ceilings, comparator execution, and P2 execution with four submissions and no warm-ups or retries. The workloads, criteria and limits are unchanged.
+     - Three states are kept separate in §20.9, §22.1, §22.5, §23 and §27.6: permission, created by D-100's manual merge; authorization, one-time for each operation under Part 15; and execution, which may not happen until that authorization is given.
+     - D-100 is a new Stage E (b) route. D-97's D1 and D2 procedures, restrictions and historical results are not retroactively changed, and no D-97, D-98 or D-99 safety, privacy, workload or stop condition is relaxed. No P3 or official comparison round runs, and P1 and P2 produce no model selection, ranking or adoption.
+     - The workloads, criteria, two-stage evidence manifest, stop rules and privacy limits agree between Parts 1–15, the §23 row, the §27.2 row and criterion 27.
+   - **Diagnostic outcomes (owner decision, Option B):** no individual D1 or D2 run outcome, authorization ID, measurement or model-specific result is recorded. The present-tense statements that D2 had not been authorized or run, or that D1 ran only once, are replaced in §22.1, §22.5 and §27.6 by neutral wording: the diagnostic artifacts are retained outside the repository and are not summarized, and recording them needs a separate owner decision under D-97. The §27.2 D-99 row's statement is reworded as a statement about the D-99 pass. The dated status lines of checks 17–20 and the §22.5 D1 run record are historical records of their time and are unchanged; the neutral statements supersede them.
+   - **Status consistency:**
+     - PR-08 is BLOCKED, PR #21 is open and not merged at head `e7c171a`, and M2 is IN PROGRESS and halted at §20.9 Stage E after `MODEL_SELECTION_FAILED`.
+     - PR-09, PR-10 and M3–M4 are NOT STARTED.
+     - No model is selected or frozen, and prompt v1 is `status: draft`. The live-LLM contract tests and the primary evaluation run remain deferred.
+   - **Mechanical checks repeated** on the complete document:
+     - 155 headings, counted as in checks 9–20, and 128 distinct `§` references, 0 unresolved. The headings are unchanged because D-100 adds no heading; the references increase by one because D-100 Part 3 cites §10.3;
+     - the §23 register has 100 rows, D-01 to D-100, with no gaps, no duplicates and no unregistered ID; D-100 is registered exactly once;
+     - the only active versions are Python 3.14.8, Node.js 24.21.0, Pylint 4.1.2 and Bandit 1.9.4, and the Ollama baseline is the recorded `0.40.2`;
+     - the frozen constants are unchanged.
+   - **Byte-identical**, compared with the text before this pass: everything outside §0.5, §10.1, §20.9, §22.1, §22.5, §23, §24.A and §27. In particular, D-97's documentation-exception paragraph, the §22.5 comparison round 1 record and D1 run record, and every decision row other than the new D-100 row and the D-84 and D-95 status cells.
 
 ### 27.2 Results by domain
 
 | Domain | Checked | Result |
 |---|---|---|
-| **Decision IDs** | D-01 to D-99 sequential: 99 registered decisions, each exactly once, with no gaps or duplicates; D-96, D-97, D-98 and D-99 are each registered exactly once. D-99 has decision, rationale, status and affected sections, and D-82 points to it. D-98 has decision, rationale, status and affected sections, and D-97 points to it. D-97 has decision, rationale, status and affected sections, and D-93 points to it. D-95 has decision, rationale, status and affected sections; D-61 and D-84 point to D-95 | Consistent |
+| **Decision IDs** | D-01 to D-100 sequential: 100 registered decisions, each exactly once, with no gaps or duplicates; D-96, D-97, D-98, D-99 and D-100 are each registered exactly once. D-100 has decision, rationale, status and affected sections, and §10.1 and the D-84 and D-95 status cells point to it. D-99 has decision, rationale, status and affected sections, and D-82 points to it. D-98 has decision, rationale, status and affected sections, and D-97 points to it. D-97 has decision, rationale, status and affected sections, and D-93 points to it. D-95 has decision, rationale, status and affected sections; D-61 and D-84 point to D-95 | Consistent |
 | **Cross-references** | every `§` reference, including the new §10.1 ↔ §20.6 ↔ §20.9 ↔ §20.10 ↔ §24.B prompt-lifecycle links | Consistent |
 | **Prompt lifecycle (D-95)** | §10.1 diagram and rules 1–5 ↔ §20.6 frozen development set ↔ §20.7 final-gate row ↔ §20.9 overview and "After selection" ↔ §20.10 revision records ↔ §22 M2 ↔ §24.A and §24.B ↔ §23 D-95 ↔ §20.3 tests | Consistent. Refinement happens only on the frozen, disjoint development set. Every revision is recorded immutably (`v1-rN`, content copy, manifest identifier, dev-set result, reason, timestamp and run ID). It stops at owner acceptance or designation, which is never a waiver. Each attempt uses a frozen, distinct revision on seeds 42/43/44 under the D-94 rule. At most 3 attempts; a third failure gives `MODEL_SELECTION_FAILED`. Freeze happens only after a PASS, with the passing revision's hashes. |
 | **Stability (D-94)** | §20.7, §20.8, §20.9 Stage D, §10.1 final gate | Unchanged. The full verdict must be PASS independently for each seed, with no averaging. |
@@ -4816,8 +5177,9 @@ This audit was performed afresh on the complete document, after the final correc
 | **Stage E diagnostic phase (D-97)** | §20.6, §20.9 Stage E and the D-97 paragraph, §22.5 PR-08 acceptance, §23 D-93 and D-97, §0.5 | Consistent. D-97 refines D-93 without adding a route to selection. During the halt, only the documentation workflow for a CIS amendment is permitted. D1 (development set, unchanged `v1-r0`, each case once per model, no warm-up) and D2 (synthetic inputs only; B0 and pre-approved, verified, recorded and restored Ollama server settings) each need separate owner authorization and run once. Verification items V1–V4 name their round-1 reference evidence. Comparisons A–C, the B0 restoration checks R1–R9, the lifecycle-request rules and the stop rules agree with the register row and the scope summary. No gate, timeout, dataset, prompt, schema, application configuration, model or official baseline changes, and B0 is not the official baseline. |
 | **Provider calls within a scheduled submission (D-98)** | §20.9 D-98 paragraph, §23 D-97 and D-98, §7.3, §9.4, D-41, §0.5 | Consistent. A scheduled diagnostic submission is one case-level submission through the real review pipeline. Its provider calls are only those §7.3, §9.4 and D-41 already permit: at most four, including each operation's one permitted schema-validation retry. They are constituent calls of the submission, not extra submissions, warm-ups or script-initiated retries. No script-level retry is permitted. `AI_OUTPUT_RETRY_COUNT` and Category A are unchanged, and every D-97 restriction is unchanged. |
 | **Implementation status (PR-08 comparison round 1 record)** | §22.1 status table, §22.5 Status column, PR-08 documentation exception and comparison round 1 record | Consistent. Comparison round 1 ended with `MODEL_SELECTION_FAILED`: `qwen2.5-coder:7b-instruct-q4_K_M` failed C1, C3, C4, P1 and P3, and `qwen3:4b-instruct-2507-q4_K_M` failed C3, C4 and P1, as recorded. PR #21 (head `e7c171a`) is open and not merged, and its records stay byte-identical. PR-00 to PR-07 are COMPLETED, M0 and M1 are COMPLETED, PR-08 is BLOCKED, and M2 is IN PROGRESS and halted at Stage E. PR-09, PR-10 and M3–M4 are NOT STARTED. The disclosed development-set diagnosis and the D0 evidence preservation are recorded as history. At the time of this row, neither D1 nor D2 had been authorized or run; the D-99 row supersedes this for D1. No model is selected or frozen, and prompt v1 is `status: draft`. |
-| **Corrective Ollama restoration (D-99), D1 run and drift records** | §8.8 D-82 policy and the D-99 paragraphs, §20.9 halt rule, §20.10, §21.1, §21.4, §22.1, §22.5, §23 D-82 and D-99, §0.5 | Consistent. The restoration reinstates the recorded `0.40.2`. It is distinguished from a D-82 upgrade, from D1 and D2, and from a Stage E round. Each D-82 item is classified explicitly: items 1 and 6 are exempted by D-99; the default test suite and tool contract tests are required after restoration with `RUN_LIVE_LLM` unset; the environment record is verified (`ollama` `OK` at `0.40.2`), not rewritten; lockfiles and fixtures are unaffected; the live-LLM contract tests and the primary run are deferred, not completed, until an approved Stage E amendment. None is described as complete, and no primary run happens during the halt. The procedure covers evidence preservation (including one pre-restoration `GET /api/version`), the update setting, the verified official installer, model files, the separately approved install, verification, and a stop rule with no further installation or recovery under D-99. Recovery needs a separate owner decision, and the staged update is never used. It permits only `GET /api/version` and `GET /api/tags`, and no model call. The D1 and next-round prerequisites are stated separately. The environment record, the round-1 reports and the D-82 list are unchanged. The drift is recorded factually, with its unevidenced start stated as such. D1 is recorded as run once, stopped at V1 with no submission, and its authorization consumed. D2 has not been authorized or run. At the time of the D-99 pass, Ollama had not been restored; the row below supersedes this. D-99 authorizes no D1, D2, candidate, prompt refinement, comparison round or PR #21 change. |
+| **Corrective Ollama restoration (D-99), D1 run and drift records** | §8.8 D-82 policy and the D-99 paragraphs, §20.9 halt rule, §20.10, §21.1, §21.4, §22.1, §22.5, §23 D-82 and D-99, §0.5 | Consistent. The restoration reinstates the recorded `0.40.2`. It is distinguished from a D-82 upgrade, from D1 and D2, and from a Stage E round. Each D-82 item is classified explicitly: items 1 and 6 are exempted by D-99; the default test suite and tool contract tests are required after restoration with `RUN_LIVE_LLM` unset; the environment record is verified (`ollama` `OK` at `0.40.2`), not rewritten; lockfiles and fixtures are unaffected; the live-LLM contract tests and the primary run are deferred, not completed, until an approved Stage E amendment. None is described as complete, and no primary run happens during the halt. The procedure covers evidence preservation (including one pre-restoration `GET /api/version`), the update setting, the verified official installer, model files, the separately approved install, verification, and a stop rule with no further installation or recovery under D-99. Recovery needs a separate owner decision, and the staged update is never used. It permits only `GET /api/version` and `GET /api/tags`, and no model call. The D1 and next-round prerequisites are stated separately. The environment record, the round-1 reports and the D-82 list are unchanged. The drift is recorded factually, with its unevidenced start stated as such. The §22.5 D1 run record covers one D1 run, stopped at V1 with no submission, and its consumed authorization. At the time of the D-99 pass, D2 had not been authorized or run; later D1/D2 diagnostic artifacts are retained outside the repository and are not summarized in the CIS (D-100 row below). At the time of the D-99 pass, Ollama had not been restored; the row below supersedes this. D-99 authorizes no D1, D2, candidate, prompt refinement, comparison round or PR #21 change. |
 | **D-99 restoration record** | §22.5 D-99 restoration record and current status, §22.1 PR-08 row, §27.6, D-99 evidence manifests | Consistent. Ollama is restored to the recorded `0.40.2`, and all step-7 checks (a)–(h) passed. The installed version before restoration (`0.40.6`), the observed running server version before restoration (`0.40.6`) and the restored version (`0.40.2`) are recorded separately. Attempt 1's truncated download is recorded as a step-8 stop, followed by the owner's separate decision to authorize one more attempt, and attempt 2's size, SHA-256 and signature are verified. The step-3 and step-6 errata are recorded as script defects, separately from the actual outcomes. The live-LLM contract tests and the primary evaluation run remain deferred. No D1, D2 or evaluation is authorized. |
+| **Stage E route b1 (D-100)** | §20.9 "Stage E route b1 (D-100)" Parts 1–15 and the halt bullet, §10.1 pre-selection route, rule 1 and E2 bullet, §22.1 PR-08 row, §22.5 PR-08 rule, D-100 exception bullet and current status, §23 D-84, D-95 and D-100, §24.A Prompt lifecycle row, §27.6, §0.5 | Consistent. D-100 takes Stage E (b) with one experimental factor, the four prompt templates; models, settings, timeouts, runtime, datasets, schemas, application and evaluation code, and every gate are unchanged. Its exceptions E1–E4 are narrow and enumerated, take effect only on the owner's manual merge, and authorize no execution; every action in Part 15 needs its own one-time authorization, and P0, P1, P2, the comparator, the P2 runner, the live-LLM contract tests and P3 remain unauthorized. E1 items 1–12 enumerate every activity Parts 7–11 require, including at most eight prescribed P1 warm-ups within the existing ceilings and P2 with four submissions and no warm-ups or retries. Permission (created by the merge), authorization (one-time, Part 15) and execution (not before that authorization) are distinguished. The route does not change the D1 or D2 restrictions under D-97. E2 is the narrow D-84/D-95 lifecycle and recording exception: its pre-selection common refinement (E2.A) is explicit, limited to route b1 and uses the same revision for every eligible candidate, without ranking, selecting or rejecting a model. It does not replace or satisfy the post-selection D-95 lifecycle, and D-84 and D-95 remain the general rules outside it. The §22.5 PR-08 rule and the §24.A Prompt lifecycle row cross-reference E2.A directly. D-100 Part 1 requires a separate CIS amendment, before comparison round 2 is authorized or executed, to reconcile §10.1's `v1-r0` comparison statement with the new snapshot and to identify and freeze that snapshot; this neither authorizes nor prepares P3. The workloads (P1 at most 64 scheduled submissions, 8 warm-ups and 288 provider attempts; P2 at most 4 submissions and 16 provider attempts; at most 304 in total), the P1 criteria A–E for both models, the P2 success rule, the two-stage evidence manifest (the comparator reads only the input manifest), the stop rules and the privacy limits agree across Parts 1–15 and the register row. No individual D1/D2 diagnostic outcome is recorded; the current-status statements in §22.1, §22.5 and §27.6 say neutrally that the diagnostic artifacts are retained outside the repository and not summarized. M2 stays halted after `MODEL_SELECTION_FAILED`; no model is selected and prompt v1 stays `status: draft`. |
 
 ### 27.3 Consistency with the parent specifications
 
@@ -4854,6 +5216,7 @@ This audit was performed afresh on the complete document, after the final correc
 | 24 | D-98 is added once and clarifies D-97 only: the provider calls within a scheduled submission are those §7.3, §9.4 and D-41 already permit; no new model call, script-level retry, setting, gate or timeout change; the C1 denominator question is not addressed; the unavailability of the D0 copies is recorded without changing the §22.5 D0 record | Met (§20.9, §23, §27) |
 | 25 | D-99 is added once and applies D-82 to the one-time corrective restoration of Ollama to the recorded `0.40.2`. The restoration is distinguished from an upgrade, a diagnostic and a Stage E round. Every D-82 item is classified as satisfied, required after restoration, deferred until Stage E resumes, or explicitly exempted by D-99. None is described as complete when it is only deferred or exempted. The procedure, its separate approvals, its stop rule (no further installation or recovery under D-99) and the separate D1 and next-round prerequisites are defined. No baseline, gate, environment record or round-1 record changes. The drift and the D1 run are recorded factually. Ollama was then not recorded as restored (criterion 26 supersedes this), and no D1, D2 or comparison round is authorized | Met (§8.8, §20.9, §22.5, §23) |
 | 26 | The D-99 restoration is recorded in §22.5 from the evidence records, with the installed, observed-running and restored versions kept separate. The record covers each step's outcome, including attempt 1's stop and the owner's decision for one further attempt, the installer and executable hashes, the signature, and every step-7 check. Both errata are recorded as script defects without changing the original records, and the evidence's limitations are stated. No personal data from the screenshot is recorded. The deferred D-82 items stay deferred, and no D1, D2 or evaluation is authorized | Met (§22.1, §22.5, §27.6) |
+| 27 | D-100 is added once as the Stage E (b) route-b1 amendment. Its single experimental factor is the four prompt templates; no gate, threshold, timeout, dataset, model, setting, schema, application or evaluation code changes. Exceptions E1–E4 are narrow, enumerated and effective only on the owner's manual merge; they permit no change to PR-08 or PR #21 and no push or merge of experimental revisions. D-100 authorizes no execution: every action in its Part 15, including P0, P1, P2, the comparator, the P2 runner, the live-LLM contract tests and P3, needs its own one-time authorization. E1 enumerates every activity Parts 7–11 require, with at most eight prescribed P1 warm-ups counted within the existing ceilings and P2 limited to four submissions with no warm-ups or retries; it distinguishes permission (created by the merge), authorization (one-time) and execution (not before that authorization), and does not change the D1 or D2 restrictions under D-97. The workloads, P1 criteria, P2 success rule, two-stage evidence manifest, stop rules and privacy limits are defined before any run. E2 makes the pre-selection common-refinement exception to D-84/D-95 explicit, limits it to route b1, and does not replace the post-selection D-95 lifecycle; D-84 and D-95 remain the general rules outside it. The §22.5 PR-08 rule and the §24.A Prompt lifecycle row cross-reference E2.A directly. D-100 requires a separate CIS amendment, before comparison round 2 is authorized or executed, that reconciles §10.1's `v1-r0` comparison statement with the new snapshot and identifies and freezes that snapshot; this neither authorizes nor prepares P3. No individual D1/D2 diagnostic outcome is recorded, and the current-status statements are neutral about them. No model is selected and M2 stays halted | Met (§10.1, §20.9, §22.1, §22.5, §23, §24.A, §27.6) |
 
 ### 27.5 Remaining empirical questions (§24.B)
 
@@ -4878,7 +5241,7 @@ CIS v0.3 is the implementation contract for V1 and contains no unresolved design
 
 The remaining model-specific and prompt-specific outcomes are controlled empirical results to be obtained through the explicitly defined M0/M2 evaluation process.
 
-**Current status** (2026-10-24; the authoritative record is §22.1):
+**Current status** (2026-11-02; the authoritative record is §22.1):
 
 - **Normative workflow:** every implementation PR follows §22.3–22.6 (D-96), which is unchanged.
 - **Execution history:**
@@ -4890,8 +5253,10 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
   - The Ollama version was recorded (PR #16), and the Ollama integration followed through PR-06 (PR #17), whose byte-limit correction was made before the merge. It opened M2 (§22.5).
   - The improvement operation and its §14.3 validation followed through PR-07 (PR #19), which enabled improvement by default as §16 specifies (§22.5).
   - PR-08's comparison round 1 (the open PR #21) ended with `MODEL_SELECTION_FAILED`. The Ollama server logs were then preserved (D0), and D-97 defined the Stage E diagnostic phase (§20.9, §22.5). D-98 then clarified which provider calls a scheduled diagnostic submission may contain (§20.9).
-  - D1 then ran once and stopped at its first check (V1), with no diagnostic submission. Ollama had drifted from the recorded `0.40.2` through unapproved automatic updates. D-99 defined the one-time corrective restoration (§8.8, §22.5).
+  - D1's first authorized run then stopped at its first check (V1), with no diagnostic submission. Ollama had drifted from the recorded `0.40.2` through unapproved automatic updates. D-99 defined the one-time corrective restoration (§8.8, §22.5).
   - Ollama was then restored to the recorded `0.40.2` under D-99, and all step-7 checks passed (§22.5, D-99 restoration record).
+  - D1/D2 diagnostic artifacts are retained outside the repository and are not summarized here. Recording individual diagnostic outcomes requires a separate owner decision under D-97.
+  - D-100 then defined Stage E (b) route b1 (§20.9), with narrow exceptions E1–E4. It authorizes no execution and no comparison round.
 - **Current state:**
   - `main` is protected (§22.3). `commits`, `backend` and `frontend` are required checks. The repository is public.
   - **PR-00 is COMPLETED** and merged (PR #1, merge commit `b72b3eb`, `commits` CI PASS). Its branch was deleted locally and remotely.
@@ -4913,8 +5278,8 @@ The remaining model-specific and prompt-specific outcomes are controlled empiric
   - **PR-08 (prompts, evaluation and model selection) is BLOCKED.**
     - Its comparison round 1 evaluated both eligible candidates and ended with `MODEL_SELECTION_FAILED`.
     - PR #21 is open and not merged, and its records stay byte-identical.
-    - Only the D-97 documentation exception and diagnostic phase are permitted. The one-time D-99 corrective restoration has been performed and verified.
-    - D1 ran once under its one-time authorization and stopped at V1 with no diagnostic submission; that authorization is consumed, and a later D1 needs a new one-time authorization. D2 has not been authorized or run.
-    - Ollama is at the recorded `0.40.2` again, verified by all step-7 checks (§22.5). The live-LLM contract tests and the primary evaluation run remain deferred until an approved Stage E amendment.
+    - Besides the D-97 documentation exception and diagnostic phase, D-100's manual merge permits only the activities enumerated in exception E1 (§20.9), including P0, P1 and P2 execution. Each still needs its own separate one-time authorization, and none may run until that authorization is given. D-100 authorizes no execution, official evaluation, model selection or comparison round. The one-time D-99 corrective restoration has been performed and verified.
+    - D1/D2 diagnostic artifacts are retained outside the repository and are not summarized in this current-status statement. Recording individual diagnostic outcomes requires a separate owner decision under D-97. These diagnostic activities do not constitute official gate, ranking or model-selection evidence. Any further D1 or D2 run needs a new one-time authorization.
+    - Ollama is at the recorded `0.40.2` again, verified by all step-7 checks (§22.5). The live-LLM contract tests and the primary evaluation run remain deferred; under D-100 they precede P3, which needs its own amendment and authorization.
     - The D0 copies of the Ollama server logs are no longer available, and the round-1 server log has rotated out of Ollama's log folder. D-97's V2 and V3 therefore cannot be verified against round 1 (check 18).
     - PR-09, PR-10, M3 and M4 are NOT STARTED. No model has been selected or frozen, and prompt v1 remains `status: draft`.
